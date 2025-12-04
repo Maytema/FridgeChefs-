@@ -3,473 +3,132 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FridgeChef - Рецепты из того что есть</title>
-    <link rel="stylesheet" href="/style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/css/intlTelInput.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍳</text></svg>">
+    <title>FridgeChef — Рецепты из того, что есть</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2/dist/fuse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/intl-tel-input@18.1.6/build/js/intlTelInput.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@18.1.6/build/css/intlTelInput.css">
 </head>
 <body>
-    <!-- Шапка - компактная -->
     <header class="header">
-        <div class="header-content">
-            <div class="logo-title">
-                <span class="logo">🍳</span>
-                <div>
-                    <h1>FridgeChef</h1>
-                    <p class="tagline">Рецепты из того что есть</p>
-                </div>
-            </div>
-            
-            <div class="header-actions">
-                <button class="header-btn premium-btn" id="show-premium" title="Премиум">
-                    <i class="fas fa-crown"></i>
-                </button>
-                <button class="burger-btn" id="burger-menu">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                </button>
-            </div>
+        <div class="logo">
+            <span class="logo-emoji">🍳</span>
+            <span class="logo-text">FridgeChef</span>
+        </div>
+        <div class="header-actions">
+            <button class="ai-badge" id="aiButton">
+                <span class="ai-icon">🧠</span>
+                <span class="counter">3</span>
+            </button>
+            <button class="premium-btn" id="premiumBtn">💎</button>
+            <button class="menu-btn" id="menuBtn">☰</button>
         </div>
     </header>
 
-    <!-- Боковое меню -->
-    <div class="sidebar-overlay" id="sidebar-overlay"></div>
-    <nav class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <div class="sidebar-logo">
-                <span>🍳</span>
-            </div>
-            <div class="sidebar-title">
-                <h3>FridgeChef</h3>
-                <p>Меню</p>
-            </div>
-            <button class="sidebar-close" id="sidebar-close">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        
-        <div class="sidebar-content">
-            <div class="sidebar-section">
-                <h4><i class="fas fa-user"></i> Аккаунт</h4>
-                <div class="user-status">
-                    <div class="user-name">Гость</div>
-                    <div class="user-badge free">Бесплатно</div>
-                </div>
-                <div class="ai-stats">
-                    <div class="stat">
-                        <i class="fas fa-robot"></i>
-                        <span>ИИ-рецепты: <strong id="sidebar-ai-count">3/3</strong></span>
-                    </div>
-                    <div class="stat">
-                        <i class="fas fa-history"></i>
-                        <span>Обновление: <strong>через 7ч</strong></span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="sidebar-section">
-                <h4><i class="fas fa-star"></i> Премиум</h4>
-                <p class="sidebar-description">Откройте все возможности приложения</p>
-                <button class="sidebar-upgrade" onclick="app.showPremiumModal()">
-                    <i class="fas fa-crown"></i> Улучшить
-                </button>
-            </div>
-            
-            <div class="sidebar-section">
-                <h4><i class="fas fa-link"></i> Ссылки</h4>
-                <a href="https://wa.me/996774032150" class="sidebar-link" target="_blank">
-                    <i class="fab fa-whatsapp"></i> Поддержка в WhatsApp
-                </a>
-                <a href="#" class="sidebar-link">
-                    <i class="fas fa-question-circle"></i> Помощь
-                </a>
-                <a href="#" class="sidebar-link">
-                    <i class="fas fa-shield-alt"></i> Политика конфиденциальности
-                </a>
-            </div>
-        </div>
-        
-        <div class="sidebar-footer">
-            <div class="version">v1.0.0</div>
-            <div class="copyright">© 2024 FridgeChef</div>
-        </div>
-    </nav>
-
-    <!-- Основной контент -->
     <main class="main">
+        <div class="slogan">Рецепты из того, что есть</div>
+
         <!-- Поиск -->
-        <section class="search-section">
+        <div class="search-section">
             <div class="search-container">
-                <div class="search-box">
-                    <i class="fas fa-search search-icon"></i>
-                    <input type="text" 
-                           class="search-input" 
-                           id="search" 
-                           placeholder="Введите продукт... (например: яйца, курица, помидоры)"
-                           autocomplete="off">
-                    <div class="search-hint">
-                        <i class="fas fa-lightbulb"></i> Начните печатать для поиска продуктов
-                    </div>
-                </div>
-                <div class="search-results" id="search-results">
-                    <!-- Результаты поиска -->
-                </div>
+                <input type="text" id="searchInput" placeholder="🔍 Начните вводить продукт..." autocomplete="off">
+                <div id="searchResults" class="search-results"></div>
             </div>
-        </section>
+            <!-- Фото холодильника (новая фишка) -->
+            <div class="photo-upload">
+                <input type="file" accept="image/*" capture="camera" id="photoInput">
+                <label for="photoInput">
+                    <span>📷 Сфотографируй холодильник</span>
+                    <span class="hint">ИИ сам найдёт продукты</span>
+                </label>
+            </div>
+        </div>
 
-        <!-- Выбранные продукты (показывается только при выборе) -->
-        <section class="selected-section" id="selected-section" style="display: none;">
+        <!-- Выбранные продукты -->
+        <div id="selectedProducts" class="selected-products" style="display: none;">
             <div class="selected-header">
-                <div class="selected-title">
-                    <h3><i class="fas fa-check-circle"></i> Выбрано</h3>
-                    <span class="selected-count" id="selected-count">0</span>
-                </div>
-                <button class="clear-btn" id="clear-selected">
-                    <i class="fas fa-trash"></i> Очистить
-                </button>
+                <span id="selectedCount">Выбрано: 0</span>
+                <button id="clearAll">Очистить</button>
             </div>
-            <div class="chips-container" id="chips-container">
-                <!-- Чипсы выбранных продуктов -->
-            </div>
-        </section>
+            <div id="chipsContainer" class="chips-container"></div>
+        </div>
 
-        <!-- Быстрые действия -->
-        <section class="quick-actions">
-            <button class="action-btn primary" id="find-recipes">
-                <i class="fas fa-search"></i>
-                <span>Найти рецепты</span>
-            </button>
-            <button class="action-btn ai" id="ai-recipe-btn">
-                <i class="fas fa-robot"></i>
-                <span>ИИ-рецепт</span>
-                <span class="ai-badge" id="ai-badge">3</span>
-            </button>
-        </section>
+        <!-- Категории -->
+        <div class="categories-section">
+            <div class="categories-header">
+                <h2>Все продукты по категориям</h2>
+                <button id="collapseAll">Свернуть все</button>
+            </div>
+            <div id="categoriesList" class="categories-list"></div>
+        </div>
 
-        <!-- Категории продуктов -->
-        <section class="categories-section">
-            <div class="section-header">
-                <h2><i class="fas fa-layer-group"></i> Все продукты</h2>
-                <div class="section-actions">
-                    <button class="icon-btn" id="toggle-categories" title="Свернуть/развернуть">
-                        <i class="fas fa-expand-alt"></i>
-                    </button>
-                </div>
-            </div>
-            
-            <div class="categories-grid" id="categories-container">
-                <!-- Категории загружаются через JS -->
-            </div>
-        </section>
+        <!-- Кнопки действий -->
+        <div class="actions-section">
+            <button id="findRecipes" class="main-cta" disabled>🔍 Найти рецепты</button>
+            <button id="aiRecipe" class="ai-cta">🧠 ИИ-рецепт <span class="badge">3 бесплатно</span></button>
+        </div>
 
-        <!-- Результаты рецептов -->
-        <section class="recipes-section" id="recipes-section" style="display: none;">
-            <div class="section-header">
-                <div>
-                    <h2><i class="fas fa-utensils"></i> Найдено рецептов</h2>
-                    <p class="section-subtitle" id="results-subtitle">По вашим ингредиентам</p>
-                </div>
-                <div class="results-count" id="results-count">0</div>
-            </div>
-            
-            <div class="recipes-grid" id="results-container">
-                <!-- Рецепты загружаются здесь -->
-            </div>
-        </section>
-
-        <!-- Пустое состояние -->
-        <div class="empty-state" id="empty-state">
-            <div class="empty-icon">
-                <i class="fas fa-utensils"></i>
-            </div>
-            <h3>Выберите продукты для начала</h3>
-            <p>Используйте поиск или категории, чтобы выбрать ингредиенты</p>
+        <!-- Результаты -->
+        <div id="resultsSection" class="results-section" style="display: none;">
+            <h2 id="resultsTitle">Найдено рецептов: 0</h2>
+            <div id="recipesList" class="recipes-list"></div>
         </div>
     </main>
 
-    <!-- Футер -->
     <footer class="footer">
-        <div class="footer-content">
-            <div class="footer-section">
-                <div class="footer-logo">
-                    <span>🍳</span>
-                    <div>
-                        <h4>FridgeChef</h4>
-                        <p>Умный помощник на кухне</p>
-                    </div>
-                </div>
-                <p class="footer-description">
-                    Находим рецепты по ингредиентам, которые есть у вас дома.
-                    Экономьте время и деньги!
-                </p>
-            </div>
-            
-            <div class="footer-section">
-                <h4>Контакты</h4>
-                <a href="https://wa.me/996774032150" class="contact-link" target="_blank">
-                    <i class="fab fa-whatsapp"></i>
-                    <span>Поддержка в WhatsApp</span>
-                </a>
-                <div class="social-links">
-                    <a href="#" class="social-link" title="Telegram">
-                        <i class="fab fa-telegram"></i>
-                    </a>
-                    <a href="#" class="social-link" title="Instagram">
-                        <i class="fab fa-instagram"></i>
-                    </a>
-                </div>
-            </div>
-            
-            <div class="footer-section">
-                <h4>О проекте</h4>
-                <a href="#" class="footer-link">Как это работает</a>
-                <a href="#" class="footer-link">Частые вопросы</a>
-                <a href="#" class="footer-link">Политика конфиденциальности</a>
-            </div>
-        </div>
-        
-        <div class="footer-bottom">
-            <p>© 2024 FridgeChef. Все права защищены.</p>
-        </div>
+        <p>FridgeChef — рецепты из того, что есть</p>
+        <button id="whatsappBtn">💬 Написать в WhatsApp</button>
+        <p>© 2025 FridgeChef</p>
     </footer>
 
-    <!-- Модальное окно премиума -->
-    <div class="modal" id="premium-modal">
-        <div class="modal-dialog">
-            <div class="modal-header">
-                <div class="modal-title">
-                    <i class="fas fa-crown"></i>
-                    <h3>Премиум доступ</h3>
+    <!-- Модалки -->
+    <div id="premiumModal" class="modal">
+        <div class="modal-content">
+            <h3>💎 Премиум доступ</h3>
+            <p>Получите больше возможностей</p>
+            <div class="plans">
+                <div class="plan recommended">
+                    <div class="badge">🔥 Популярный</div>
+                    <div class="name">10 ИИ-рецептов</div>
+                    <div class="price">99₽</div>
+                    <button class="buy-btn">Купить</button>
                 </div>
-                <p class="modal-subtitle">Разблокируйте все возможности</p>
-                <button class="modal-close" onclick="app.hideModal('premium-modal')">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            
-            <div class="modal-body">
-                <div class="plans">
-                    <div class="plan-card" data-plan="10recipes">
-                        <div class="plan-badge">Популярный</div>
-                        <div class="plan-icon">
-                            <i class="fas fa-bolt"></i>
-                        </div>
-                        <h4>10 ИИ-рецептов</h4>
-                        <div class="plan-price">99 ₽</div>
-                        <p class="plan-description">Разовое пополнение баланса</p>
-                        <ul class="plan-features">
-                            <li><i class="fas fa-check"></i> 10 дополнительных ИИ-рецептов</li>
-                            <li><i class="fas fa-check"></i> Безлимитные обычные рецепты</li>
-                            <li><i class="fas fa-check"></i> Приоритетная поддержка</li>
-                        </ul>
-                    </div>
-                    
-                    <div class="plan-card featured" data-plan="monthly">
-                        <div class="plan-badge">Выгодно</div>
-                        <div class="plan-icon">
-                            <i class="fas fa-infinity"></i>
-                        </div>
-                        <h4>Полный доступ</h4>
-                        <div class="plan-price">299 ₽ <small>/месяц</small></div>
-                        <p class="plan-description">Неограниченные возможности</p>
-                        <ul class="plan-features">
-                            <li><i class="fas fa-check"></i> Неограниченные ИИ-рецепты</li>
-                            <li><i class="fas fa-check"></i> Все обычные рецепты</li>
-                            <li><i class="fas fa-check"></i> Экспорт рецептов в PDF</li>
-                            <li><i class="fas fa-check"></i> Приоритетная поддержка</li>
-                            <li><i class="fas fa-check"></i> Без рекламы</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <div class="payment-info">
-                    <div class="info-card">
-                        <i class="fas fa-info-circle"></i>
-                        <div>
-                            <h5>Как активировать премиум?</h5>
-                            <p>1. Выберите тариф и оплатите<br>
-                               2. Напишите нам в WhatsApp с номером заказа<br>
-                               3. Мы активируем премиум в течение 15 минут</p>
-                        </div>
-                    </div>
+                <div class="plan">
+                    <div class="name">Безлимит за месяц</div>
+                    <div class="price">299₽</div>
+                    <button class="buy-btn">Купить</button>
                 </div>
             </div>
-            
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="app.hideModal('premium-modal')">
-                    <i class="fas fa-times"></i> Отмена
-                </button>
-                <button class="btn btn-primary" id="buy-premium">
-                    <i class="fas fa-shopping-cart"></i> Перейти к оплате
-                </button>
-            </div>
+            <button id="closePremium">Отмена</button>
         </div>
     </div>
 
-    <!-- Модальное окно отправки рецепта -->
-    <div class="modal" id="share-modal">
-        <div class="modal-dialog">
-            <div class="modal-header">
-                <div class="modal-title">
-                    <i class="fas fa-share-alt"></i>
-                    <h3>Отправить рецепт</h3>
-                </div>
-                <button class="modal-close" onclick="app.hideModal('share-modal')">
-                    <i class="fas fa-times"></i>
-                </button>
+    <div id="shareModal" class="modal">
+        <div class="modal-content">
+            <h3>📤 Отправить рецепт</h3>
+            <div class="share-options">
+                <label><input type="radio" name="shareMethod" value="whatsapp" checked> WhatsApp</label>
+                <input type="tel" id="phoneInput" placeholder="Введите номер">
+                <label><input type="radio" name="shareMethod" value="telegram"> Telegram</label>
             </div>
-            
-            <div class="modal-body">
-                <div class="share-methods">
-                    <div class="method-card active" data-method="whatsapp">
-                        <div class="method-icon">
-                            <i class="fab fa-whatsapp"></i>
-                        </div>
-                        <div class="method-info">
-                            <h4>WhatsApp</h4>
-                            <p>Отправить себе или другу</p>
-                        </div>
-                        <div class="method-check">
-                            <i class="fas fa-check"></i>
-                        </div>
-                    </div>
-                    
-                    <div class="method-card" data-method="telegram">
-                        <div class="method-icon">
-                            <i class="fab fa-telegram"></i>
-                        </div>
-                        <div class="method-info">
-                            <h4>Telegram</h4>
-                            <p>Поделиться в чате</p>
-                        </div>
-                        <div class="method-check">
-                            <i class="fas fa-check"></i>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="phone-input-container" id="phone-container">
-                    <label for="whatsapp-phone">
-                        <i class="fas fa-phone"></i> Номер телефона
-                    </label>
-                    <input type="tel" 
-                           id="whatsapp-phone" 
-                           class="phone-input"
-                           placeholder="+7 900 123 45 67">
-                    <div class="phone-hint">
-                        Укажите номер в международном формате
-                    </div>
-                </div>
-                
-                <div class="preview-card">
-                    <div class="preview-header">
-                        <i class="fas fa-eye"></i> Предпросмотр
-                    </div>
-                    <div class="preview-content" id="recipe-preview">
-                        Загрузка...
-                    </div>
-                </div>
-            </div>
-            
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="app.hideModal('share-modal')">
-                    <i class="fas fa-times"></i> Отмена
-                </button>
-                <button class="btn btn-primary" id="send-recipe">
-                    <i class="fas fa-paper-plane"></i> Отправить
-                </button>
-            </div>
+            <button id="sendShare">Отправить</button>
+            <button id="closeShare">Отмена</button>
         </div>
     </div>
 
-    <!-- Модальное окно лимита ИИ -->
-    <div class="modal" id="limit-modal">
-        <div class="modal-dialog small">
-            <div class="modal-header">
-                <div class="modal-title">
-                    <i class="fas fa-robot"></i>
-                    <h3>Лимит ИИ-рецептов исчерпан</h3>
-                </div>
+    <div id="aiLimitModal" class="modal">
+        <div class="modal-content">
+            <h3>🧠 Лимит исчерпан</h3>
+            <p>Вы использовали все 3 бесплатных. Купите или вернитесь завтра.</p>
+            <div class="plans">
+                <div class="plan"><div>10 рецептов — 99₽</div><button class="buy-btn">Купить</button></div>
+                <div class="plan"><div>Безлимит — 299₽/мес</div><button class="buy-btn">Купить</button></div>
             </div>
-            
-            <div class="modal-body">
-                <div class="limit-content">
-                    <div class="limit-icon">
-                        <i class="fas fa-hourglass-end"></i>
-                    </div>
-                    <h4>Вы использовали все 3 бесплатных ИИ-рецепта</h4>
-                    <p>Вы можете:</p>
-                    
-                    <div class="limit-options">
-                        <div class="limit-option">
-                            <i class="fas fa-crown"></i>
-                            <div>
-                                <h5>Купить премиум</h5>
-                                <p>Неограниченные ИИ-рецепты за 299₽/месяц</p>
-                            </div>
-                            <button class="btn btn-small" onclick="app.showPremiumModal()">
-                                Выбрать
-                            </button>
-                        </div>
-                        
-                        <div class="limit-option">
-                            <i class="fas fa-bolt"></i>
-                            <div>
-                                <h5>10 дополнительных рецептов</h5>
-                                <p>Разовое пополнение за 99₽</p>
-                            </div>
-                            <button class="btn btn-small" onclick="app.showPremiumModal()">
-                                Выбрать
-                            </button>
-                        </div>
-                        
-                        <div class="limit-option">
-                            <i class="fas fa-clock"></i>
-                            <div>
-                                <h5>Вернуться завтра</h5>
-                                <p>Лимит обновится через 24 часа</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="app.hideModal('limit-modal')">
-                    Понятно
-                </button>
-            </div>
+            <button id="closeLimit">Понятно</button>
         </div>
     </div>
 
-    <!-- DonationAlerts инструкция -->
-    <div class="modal" id="donate-modal">
-        <div class="modal-dialog">
-            <div class="modal-header">
-                <div class="modal-title">
-                    <i class="fas fa-credit-card"></i>
-                    <h3>Оплата премиума</h3>
-                </div>
-                <button class="modal-close" onclick="app.hideModal('donate-modal')">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            
-            <div class="modal-body">
-                <div class="donation-steps">
-                    <div class="step">
-                        <div class="step-number">1</div>
-                        <div class="step-content">
-                            <h4>Перейдите на страницу оплаты</h4>
-                            <p>Будет открыта страница DonationAlerts</p>
-                            <a href="#" class="donate-link" id="donate-link" target="_blank">
-                                <i class="fas fa-external-link-alt"></i>
-                                Перейти к оплате
-                            </a>
-                        </div>
-                    </div>
-                    
-                    <div class="step">
-                    
+    <script src="app.js"></script>
+</body>
+</html>
