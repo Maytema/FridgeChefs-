@@ -3,98 +3,135 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍳 Food AI Cook - Что приготовить из того что есть</title>
+    <title>🍳 FridgeChefs - Что приготовить из того что есть</title>
     <link rel="stylesheet" href="style.css">
-    <meta name="description" content="Открой холодильник — ИИ придумает рецепт за 10 секунд. 150+ продуктов, умный поиск, бесплатно.">
+    <meta name="description" content="Открой холодильник — получи рецепт за 10 секунд. 150+ продуктов, умный поиск, ИИ-генерация рецептов.">
 </head>
 <body>
     <div class="app">
         <!-- Шапка -->
-        <header>
-            <div class="logo">🍳 Food AI Cook</div>
-            <div class="user-stats">
-                <span id="free-counter">3</span> бесплатно | 
-                <span id="paid-counter">10</span> премиум
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">🍳</span>
+                <h1>FridgeChefs</h1>
+            </div>
+            <div class="stats">
+                <div class="stat free">
+                    <span class="stat-label">Бесплатно:</span>
+                    <span class="stat-value" id="free-count">3</span>
+                </div>
+                <div class="stat premium">
+                    <span class="stat-label">Премиум:</span>
+                    <span class="stat-value" id="paid-count">10</span>
+                </div>
             </div>
         </header>
 
-        <!-- Основной контент -->
-        <main>
-            <div class="hero">
-                <h1>Что приготовить из того, что есть?</h1>
-                <p>Выбери продукты из холодильника — получи идеальный рецепт</p>
-            </div>
+        <!-- Главный экран -->
+        <main class="main">
+            <section class="hero">
+                <h2>Что приготовить из того, что есть в холодильнике?</h2>
+                <p class="subtitle">Выбери продукты — получи идеальный рецепт за 10 секунд</p>
+                
+                <div class="tags">
+                    <button class="tag" data-tag="быстро">быстро</button>
+                    <button class="tag" data-tag="острое">острое</button>
+                    <button class="tag" data-tag="без мяса">без мяса</button>
+                    <button class="tag" data-tag="в духовке">в духовке</button>
+                    <button class="tag" data-tag="на двоих">на двоих</button>
+                    <button class="tag" data-tag="детям">детям</button>
+                </div>
+            </section>
 
             <!-- Выбор ингредиентов -->
             <section class="ingredients-section">
-                <h2>📦 Что у тебя есть? (<span id="selected-count">0</span>)</h2>
+                <div class="section-header">
+                    <h3>📦 Что у тебя есть? (<span id="selected-count">0</span>)</h3>
+                    <input type="text" class="search" placeholder="Поиск продуктов..." id="search-input">
+                </div>
+                
                 <div class="ingredients-grid" id="ingredients-grid">
                     <!-- Ингредиенты загружаются через JS -->
                 </div>
-                <input type="text" id="preferences" 
-                       placeholder="Напиши пожелания: быстро, остро, без мяса, в духовке...">
+                
+                <div class="custom-input">
+                    <input type="text" id="custom-ingredients" placeholder="Или напиши свои продукты через запятую...">
+                    <input type="text" id="preferences" placeholder="Пожелания: быстро, остро, без мяса...">
+                </div>
             </section>
 
             <!-- Кнопки действий -->
             <section class="actions">
-                <button id="find-recipes" class="btn-primary">
-                    🔍 Найти рецепты в базе
+                <button class="btn btn-primary" id="find-btn">
+                    🔍 Найти рецепты (база)
                 </button>
-                <button id="ai-recipes" class="btn-secondary">
+                <button class="btn btn-secondary" id="ai-btn">
                     ✨ Придумать ИИ-рецепт
                 </button>
-                <button id="buy-recipes" class="btn-premium">
+                <button class="btn btn-premium" id="buy-btn">
                     💎 Купить 10 рецептов за 99₽
                 </button>
             </section>
 
             <!-- Результаты -->
             <section class="results-section">
-                <h2>🍽️ Подходящие рецепты:</h2>
-                <div id="recipes-container">
+                <h3>🍽️ Найденные рецепты:</h3>
+                <div class="results" id="results">
                     <div class="empty-state">
-                        <p>Выберите ингредиенты и нажмите "Найти рецепты"</p>
+                        <p>Выберите продукты и нажмите "Найти рецепты"</p>
                     </div>
                 </div>
             </section>
 
             <!-- Информация о премиуме -->
-            <section class="premium-info">
-                <h3>💎 Как это работает?</h3>
-                <div class="steps">
-                    <div class="step">1. Бесплатно: 3 рецепта в день</div>
-                    <div class="step">2. Исчерпали? Купите 10 рецептов за 99₽</div>
-                    <div class="step">3. Премиум: 149₽/мес безлимит</div>
+            <section class="premium-section">
+                <h3>💎 Премиум возможности</h3>
+                <div class="premium-features">
+                    <div class="feature">✓ Безлимитная генерация рецептов</div>
+                    <div class="feature">✓ Персональные подборки</div>
+                    <div class="feature">✓ Сохранение любимых рецептов</div>
+                    <div class="feature">✓ Экспорт в PDF и списки покупок</div>
+                </div>
+                <div class="pricing">
+                    <div class="price-option">
+                        <div class="price">99₽</div>
+                        <div class="desc">10 дополнительных рецептов</div>
+                    </div>
+                    <div class="price-option popular">
+                        <div class="price">149₽/мес</div>
+                        <div class="desc">Безлимитный доступ</div>
+                    </div>
                 </div>
             </section>
         </main>
 
         <!-- Футер -->
-        <footer>
-            <p>© 2024 Food AI Cook | Готовим вкусно — живём легко ❤️</p>
+        <footer class="footer">
+            <p>© 2024 FridgeChefs | Готовим вкусно — живём легко ❤️</p>
+            <p class="footer-note">ИИ-шеф всегда под рукой</p>
         </footer>
 
         <!-- Модальное окно оплаты -->
-        <div id="payment-modal" class="modal">
+        <div class="modal" id="payment-modal">
             <div class="modal-content">
-                <h3>💎 Купить дополнительные рецепты</h3>
-                <p>Вы исчерпали бесплатные рецепты</p>
-                <div class="pricing">
-                    <div class="plan" data-amount="10">
-                        <div class="price">99₽</div>
-                        <div class="desc">10 рецептов</div>
+                <h3>💎 Расширьте возможности</h3>
+                <p>Бесплатные рецепты закончились</p>
+                <div class="modal-pricing">
+                    <div class="modal-option" data-amount="10">
+                        <div class="modal-price">99₽</div>
+                        <div class="modal-desc">+10 рецептов</div>
                     </div>
-                    <div class="plan active" data-amount="999">
-                        <div class="price">149₽/мес</div>
-                        <div class="desc">Безлимит</div>
+                    <div class="modal-option active" data-amount="unlimited">
+                        <div class="modal-price">149₽/мес</div>
+                        <div class="modal-desc">Безлимит</div>
                     </div>
                 </div>
-                <button id="confirm-payment" class="btn-primary">Оплатить</button>
-                <button id="close-modal" class="btn-secondary">Позже</button>
+                <button class="btn btn-primary" id="pay-btn">Оплатить</button>
+                <button class="btn btn-secondary" id="close-modal">Позже</button>
             </div>
         </div>
     </div>
 
     <script src="app.js"></script>
 </body>
-                          </html>
+</html>
