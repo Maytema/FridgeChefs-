@@ -2,11 +2,32 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Инициализация Gemini
+let genAI;
+let geminiAvailable = false;
+
+if (process.env.GEMINI_API_KEY) {
+    try {
+        genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        geminiAvailable = true;
+        console.log('✅ Gemini API инициализирован');
+    } catch (error) {
+        console.error('❌ Ошибка инициализации Gemini:', error.message);
+    }
+} else {
+    console.warn('⚠️  GEMINI_API_KEY не задан, ИИ-рецепты не будут работать');
+}
 
 app.use(cors());
 app.use(express.json());
@@ -167,12 +188,43 @@ const RECIPES_DB = [
             "Смешайте макароны с соусом",
             "Посыпьте сыром"
         ]
+    },
+    {
+        id: 5,
+        name: "Жареная картошка с грибами",
+        ingredients: ["картофель", "лук", "грибы", "масло растительное"],
+        time: "25 мин",
+        difficulty: "легко",
+        steps: [
+            "Нарежьте картофель соломкой",
+            "Обжарьте лук до золотистого цвета",
+            "Добавьте грибы, жарьте 5 минут",
+            "Добавьте картофель, жарьте 15 минут",
+            "Посолите и поперчите по вкусу"
+        ]
+    },
+    {
+        id: 6,
+        name: "Куриный суп",
+        ingredients: ["курица", "картофель", "морковь", "лук", "лапша"],
+        time: "40 мин",
+        difficulty: "легко",
+        steps: [
+            "Отварите курицу 20 минут",
+            "Добавьте нарезанные овощи",
+            "Варите 15 минут",
+            "Добавьте лапшу, варите 5 минут",
+            "Подавайте с зеленью"
+        ]
     }
 ];
 
 // API: Получить все продукты
 app.get('/api/products', (req, res) => {
-    res.json({ success: true, categories: PRODUCTS_BY_CATEGORY });
+    res.json({ 
+        success: true, 
+        categories: PRODUCTS_BY_CATEGORY 
+    });
 });
 
 // API: Поиск рецептов
@@ -192,15 +244,142 @@ app.post('/api/find-recipes', (req, res) => {
                        userIngLower.includes(recipeIngLower);
             })
         ).length;
+        
         return matches >= Math.min(2, recipe.ingredients.length);
     });
     
     res.json({ 
         success: true, 
-        recipes: matchedRecipes.slice(0, 4),
+        recipes: matchedRecipes.slice(0, 6),
         count: matchedRecipes.length 
     });
 });
+
+// API: Генерация ИИ-рецептов
+app.post('/api/generate-ai-recipes', async (req, res) => {
+    try {
+        if (!geminiAvailable) {
+            return res.json({ 
+                success: false, 
+                error: "ИИ-сервис временно недоступен" 
+            });
+        }
+        
+        const { ingredients, maxRecipes = 2 } = req.body;
+        
+        if (!ingredients || !Array.isArray(ingredients)) {
+            return res.json({ success: false, error: "Нет ингредиентов" });
+        }
+        
+        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        
+        const prompt = `
+        Создай ${maxRecipes} кулинарных рецепта используя ТОЛЬКО эти ингредиенты (можно использовать не все):
+        ${ingredients.join(', ')}
+        
+        Важные правила:
+        1. Формат для каждого рецепта:
+           Название: [название рецепта]
+           Время: [время в минутах] мин
+           Сложность: [легко/средне/сложно]
+           Ингредиенты: [ингредиент1, ингредиент2, ...]
+           Шаги: 
+           1. [первый шаг]
+           2. [второй шаг]
+           ...
+        
+        2. Отвечай только на русском языке.
+        3. Не добавляй ингредиенты которых нет в списке.
+        4. Не пиши ничего кроме рецептов.
+        5. Сделай шаги короткими и понятными.
+        6. Укажи только те ингредиенты которые действительно нужны для рецепта.
+        
+        Пример правильного ответа:
+        Название: Омлет с сыром
+        Время: 10 мин
+        Сложность: легко
+        Ингредиенты: яйца, сыр, соль
+        Шаги: 
+        1. Взбейте яйца с солью
+        2. Натрите сыр
+        3. Жарьте на сковороде 5 минут
+        4. Посыпьте сыром и подавайте
+        `;
+        
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        
+        const aiRecipes = parseAIResponse(text, ingredients);
+        
+        res.json({ 
+            success: true, 
+            recipes: aiRecipes,
+            aiGenerated: true 
+        });
+        
+    } catch (error) {
+        console.error('AI generation error:', error);
+        res.json({ 
+            success: false, 
+            error: "Ошибка генерации рецептов. Попробуйте позже." 
+        });
+    }
+});
+
+// Функция парсинга ответа ИИ
+function parseAIResponse(text, availableIngredients) {
+    const recipes = [];
+    const recipeBlocks = text.split(/\n\n+/);
+    
+    recipeBlocks.forEach(block => {
+        if (!block.trim()) return;
+        
+        const lines = block.split('\n').map(line => line.trim()).filter(line => line);
+        const recipe = {
+            name: '',
+            time: '',
+            difficulty: '',
+            ingredients: [],
+            steps: [],
+            aiGenerated: true
+        };
+        
+        let inSteps = false;
+        
+        lines.forEach(line => {
+            if (line.startsWith('Название:')) {
+                recipe.name = line.replace('Название:', '').trim();
+            } else if (line.startsWith('Время:')) {
+                recipe.time = line.replace('Время:', '').trim();
+            } else if (line.startsWith('Сложность:')) {
+                recipe.difficulty = line.replace('Сложность:', '').trim().toLowerCase();
+            } else if (line.startsWith('Ингредиенты:')) {
+                const ings = line.replace('Ингредиенты:', '').trim();
+                recipe.ingredients = ings.split(/[,;]/)
+                    .map(i => i.trim())
+                    .filter(i => i && availableIngredients.some(ai => 
+                        i.toLowerCase().includes(ai.toLowerCase()) || 
+                        ai.toLowerCase().includes(i.toLowerCase())
+                    ));
+            } else if (line.startsWith('Шаги:')) {
+                inSteps = true;
+            } else if (inSteps && line.match(/^\d+\./)) {
+                recipe.steps.push(line.replace(/^\d+\.\s*/, '').trim());
+            } else if (line.trim() === '') {
+                inSteps = false;
+            }
+        });
+        
+        // Проверяем что рецепт валидный
+        if (recipe.name && recipe.steps.length >= 2 && recipe.ingredients.length >= 2) {
+            recipe.id = Date.now() + Math.floor(Math.random() * 1000);
+            recipes.push(recipe);
+        }
+    });
+    
+    return recipes;
+}
 
 // API: Купить рецепты
 app.post('/api/buy-recipes', (req, res) => {
@@ -223,7 +402,27 @@ app.post('/api/buy-recipes', (req, res) => {
 
 // API: Health check
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({ 
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        gemini: geminiAvailable ? 'available' : 'unavailable'
+    });
+});
+
+// API: Статистика
+app.get('/api/stats', (req, res) => {
+    const totalProducts = Object.values(PRODUCTS_BY_CATEGORY)
+        .reduce((sum, products) => sum + products.length, 0);
+    
+    res.json({
+        success: true,
+        stats: {
+            totalProducts,
+            totalRecipes: RECIPES_DB.length,
+            categories: Object.keys(PRODUCTS_BY_CATEGORY).length,
+            geminiAvailable
+        }
+    });
 });
 
 app.get('/', (req, res) => {
@@ -232,4 +431,5 @@ app.get('/', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`✅ Сервер запущен: http://localhost:${PORT}`);
-}); 
+    console.log(`📱 Gemini API: ${geminiAvailable ? '✅ Доступен' : '❌ Недоступен'}`);
+});
