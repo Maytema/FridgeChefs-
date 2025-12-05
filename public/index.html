@@ -3,129 +3,124 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FridgeChef — Рецепты из того, что есть</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <title>ChefZero — 0 рублей → вкусный ужин</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2/dist/fuse.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/intl-tel-input@18.1.6/build/js/intlTelInput.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@18.1.6/build/css/intlTelInput.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍳</text></svg>">
 </head>
 <body>
+    <!-- Шапка в стиле 2025 -->
     <header class="header">
         <div class="logo">
             <span class="logo-emoji">🍳</span>
-            <span class="logo-text">FridgeChef</span>
+            <span class="logo-text">ChefZero</span>
         </div>
         <div class="header-actions">
-            <button class="ai-badge" id="aiButton">
-                <span class="ai-icon">🧠</span>
+            <button class="ai-badge" id="aiButton" title="ИИ-рецепты">
+                <span class="ai-icon">✨</span>
                 <span class="counter">3</span>
             </button>
-            <button class="premium-btn" id="premiumBtn">💎</button>
-            <button class="menu-btn" id="menuBtn">☰</button>
+            <button class="premium-btn" id="premiumBtn" title="Премиум">💎</button>
         </div>
     </header>
 
-    <main class="main">
-        <div class="slogan">Рецепты из того, что есть</div>
-
-        <!-- Поиск -->
+    <main class="container">
+        <!-- Блок поиска -->
         <div class="search-section">
-            <div class="search-container">
-                <input type="text" id="searchInput" placeholder="🔍 Начните вводить продукт..." autocomplete="off">
-                <div id="searchResults" class="search-results"></div>
+            <div class="search-box">
+                <input type="text" 
+                       id="searchInput" 
+                       placeholder="Начните вводить продукт: яйца, лук, картошка..."
+                       autocomplete="off">
+                <div class="search-icon">🔍</div>
             </div>
-            <!-- Фото холодильника (новая фишка) -->
-            <div class="photo-upload">
-                <input type="file" accept="image/*" capture="camera" id="photoInput">
-                <label for="photoInput">
-                    <span>📷 Сфотографируй холодильник</span>
-                    <span class="hint">ИИ сам найдёт продукты</span>
-                </label>
+            <div id="liveResults" class="live-results"></div>
+        </div>
+
+        <!-- Выбранные продукты (чипсы) -->
+        <div class="selected-section">
+            <h3>Вы выбрали: <span id="selectedCount">0</span> продукт(ов)</h3>
+            <div id="selectedChips" class="selected-chips">
+                <!-- Чипсы появляются здесь -->
             </div>
         </div>
 
-        <!-- Выбранные продукты -->
-        <div id="selectedProducts" class="selected-products" style="display: none;">
-            <div class="selected-header">
-                <span id="selectedCount">Выбрано: 0</span>
-                <button id="clearAll">Очистить</button>
-            </div>
-            <div id="chipsContainer" class="chips-container"></div>
-        </div>
-
-        <!-- Категории -->
+        <!-- Категории продуктов (аккордеон) -->
         <div class="categories-section">
-            <div class="categories-header">
-                <h2>Все продукты по категориям</h2>
-                <button id="collapseAll">Свернуть все</button>
+            <h3>📁 Категории продуктов</h3>
+            <div id="categoriesContainer" class="categories-container">
+                <!-- Категории загружаются через JavaScript -->
             </div>
-            <div id="categoriesList" class="categories-list"></div>
+            <button id="showAllBtn" class="show-all-btn">
+                <span>↓ Показать все категории</span>
+                <span class="count">(8)</span>
+            </button>
         </div>
 
-        <!-- Кнопки действий -->
+        <!-- Основные кнопки действий -->
         <div class="actions-section">
-            <button id="findRecipes" class="main-cta" disabled>🔍 Найти рецепты</button>
-            <button id="aiRecipe" class="ai-cta">🧠 ИИ-рецепт <span class="badge">3 бесплатно</span></button>
+            <button id="findRecipesBtn" class="main-cta" disabled>
+                <span class="text">Выберите минимум 1 продукт</span>
+                <span class="count"></span>
+            </button>
+            
+            <button id="aiRecipeBtn" class="ai-cta">
+                <span>✨ Создать ИИ-рецепт</span>
+                <span class="badge">3 бесплатно</span>
+            </button>
         </div>
 
-        <!-- Результаты -->
-        <div id="resultsSection" class="results-section" style="display: none;">
-            <h2 id="resultsTitle">Найдено рецептов: 0</h2>
-            <div id="recipesList" class="recipes-list"></div>
+        <!-- Результаты поиска рецептов -->
+        <div id="recipesSection" class="recipes-section hidden">
+            <h3>🍳 Подходящие рецепты: <span id="recipesCount">0</span></h3>
+            <div id="recipesGrid" class="recipes-grid">
+                <!-- Карточки рецептов появляются здесь -->
+            </div>
         </div>
+
+        <!-- Футер -->
+        <footer class="footer">
+            <p>ChefZero © 2025 — Готовьте из того, что есть дома</p>
+            <p class="footer-sub">0 рублей → вкусный ужин</p>
+        </footer>
     </main>
 
-    <footer class="footer">
-        <p>FridgeChef — рецепты из того, что есть</p>
-        <button id="whatsappBtn">💬 Написать в WhatsApp</button>
-        <p>© 2025 FridgeChef</p>
-    </footer>
-
-    <!-- Модалки -->
-    <div id="premiumModal" class="modal">
-        <div class="modal-content">
-            <h3>💎 Премиум доступ</h3>
-            <p>Получите больше возможностей</p>
+    <!-- Модальное окно премиума -->
+    <div id="premiumModal" class="modal hidden">
+        <div class="modal-content premium-modal">
+            <button class="close-modal">&times;</button>
+            <h2>🍳 Безлимитный ИИ-шеф</h2>
+            <p class="subtitle">Один раз заплатил — готовишь как бог</p>
+            
             <div class="plans">
                 <div class="plan recommended">
-                    <div class="badge">🔥 Популярный</div>
-                    <div class="name">10 ИИ-рецептов</div>
-                    <div class="price">99₽</div>
-                    <button class="buy-btn">Купить</button>
+                    <div class="badge">ПОПУЛЯРНО</div>
+                    <div class="name">Премиум на месяц</div>
+                    <div class="price">199 ₽</div>
+                    <div class="old-price">299 ₽</div>
+                    <ul class="features">
+                        <li>✓ Безлимит ИИ-рецептов</li>
+                        <li>✓ Приоритетная поддержка</li>
+                        <li>✓ Рецепты без водяного знака</li>
+                    </ul>
+                    <button class="buy-btn">Купить сейчас</button>
                 </div>
+                
                 <div class="plan">
-                    <div class="name">Безлимит за месяц</div>
-                    <div class="price">299₽</div>
-                    <button class="buy-btn">Купить</button>
+                    <div class="name">10 ИИ-рецептов</div>
+                    <div class="price">99 ₽</div>
+                    <button class="buy-btn">Купить пакет</button>
                 </div>
             </div>
-            <button id="closePremium">Отмена</button>
         </div>
     </div>
 
-    <div id="shareModal" class="modal">
-        <div class="modal-content">
-            <h3>📤 Отправить рецепт</h3>
-            <div class="share-options">
-                <label><input type="radio" name="shareMethod" value="whatsapp" checked> WhatsApp</label>
-                <input type="tel" id="phoneInput" placeholder="Введите номер">
-                <label><input type="radio" name="shareMethod" value="telegram"> Telegram</label>
+    <!-- Модалка рецепта -->
+    <div id="recipeModal" class="modal hidden">
+        <div class="modal-content recipe-modal">
+            <button class="close-modal">&times;</button>
+            <div id="recipeContent">
+                <!-- Контент рецепта подгружается динамически -->
             </div>
-            <button id="sendShare">Отправить</button>
-            <button id="closeShare">Отмена</button>
-        </div>
-    </div>
-
-    <div id="aiLimitModal" class="modal">
-        <div class="modal-content">
-            <h3>🧠 Лимит исчерпан</h3>
-            <p>Вы использовали все 3 бесплатных. Купите или вернитесь завтра.</p>
-            <div class="plans">
-                <div class="plan"><div>10 рецептов — 99₽</div><button class="buy-btn">Купить</button></div>
-                <div class="plan"><div>Безлимит — 299₽/мес</div><button class="buy-btn">Купить</button></div>
-            </div>
-            <button id="closeLimit">Понятно</button>
         </div>
     </div>
 
