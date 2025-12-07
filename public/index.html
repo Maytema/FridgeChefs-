@@ -5,125 +5,157 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ChefZero — 0 рублей → вкусный ужин</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍳</text></svg>">
+    <link rel="manifest" href="manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+    <meta name="theme-color" content="#6366F1">
+    <meta name="description" content="Создайте рецепт из того, что есть в холодильнике. ИИ-шеф, генерация фото, 0 рублей.">
 </head>
 <body>
-    <!-- Шапка в стиле 2025 -->
-    <header class="header">
-        <div class="logo">
-            <span class="logo-emoji">🍳</span>
-            <span class="logo-text">ChefZero</span>
+    <!-- Theme Toggle -->
+    <button id="themeToggle" class="theme-toggle" aria-label="Переключить тему">
+        <span class="sun">☀️</span>
+        <span class="moon">🌙</span>
+    </button>
+
+    <!-- Hero Section -->
+    <header class="hero">
+        <canvas id="particlesCanvas"></canvas>
+        <div class="hero-content">
+            <h1 class="logo">🍳 Chef<span class="zero">Zero</span></h1>
+            <p class="slogan">0 рублей → вкусный ужин</p>
+            <p class="subtitle">Загрузите продукты из холодильника и получите ИИ-рецепт с фото</p>
+            
+            <!-- Search Input -->
+            <div class="search-container">
+                <div class="search-wrapper">
+                    <input type="text" id="productSearch" placeholder="Начните вводить продукт... (яйца, курица, рис)" autocomplete="off">
+                    <div id="autocomplete" class="autocomplete"></div>
+                </div>
+                <button id="aiRecipeBtn" class="ai-button">
+                    <span class="shimmer"></span>
+                    🧠 ИИ-рецепт
+                </button>
+            </div>
         </div>
-        <div class="header-actions">
-            <button class="ai-badge" id="aiButton" title="ИИ-рецепты">
-                <span class="ai-icon">✨</span>
-                <span class="counter">3</span>
-            </button>
-            <button class="premium-btn" id="premiumBtn" title="Премиум">💎</button>
+        
+        <!-- Stats -->
+        <div class="stats">
+            <div class="stat">
+                <span class="number" data-count="350">0</span>
+                <span class="label">продуктов в базе</span>
+            </div>
+            <div class="stat">
+                <span class="number" data-count="1200">0</span>
+                <span class="label">готовых рецептов</span>
+            </div>
+            <div class="stat">
+                <span class="number" data-count="99">0</span>
+                <span class="label">% бесплатно</span>
+            </div>
         </div>
     </header>
 
-    <main class="container">
-        <!-- Блок поиска -->
-        <div class="search-section">
-            <div class="search-box">
-                <input type="text" 
-                       id="searchInput" 
-                       placeholder="Начните вводить продукт: яйца, лук, картошка..."
-                       autocomplete="off">
-                <div class="search-icon">🔍</div>
-            </div>
-            <div id="liveResults" class="live-results"></div>
+    <!-- Selected Products Chips -->
+    <section class="chips-container">
+        <h2>Ваши продукты: <span id="selectedCount">0</span></h2>
+        <div id="productChips" class="chips-grid">
+            <!-- Chips will appear here -->
         </div>
+        <p class="hint">💡 Перетаскивайте чипсы для сортировки. Клик для удаления.</p>
+    </section>
 
-        <!-- Выбранные продукты (чипсы) -->
-        <div class="selected-section">
-            <h3>Вы выбрали: <span id="selectedCount">0</span> продукт(ов)</h3>
-            <div id="selectedChips" class="selected-chips">
-                <!-- Чипсы появляются здесь -->
-            </div>
+    <!-- Recipes Section -->
+    <main class="recipes-section">
+        <h2>Рецепты</h2>
+        <div class="tabs">
+            <button class="tab active" data-tab="ai">ИИ-рецепты</button>
+            <button class="tab" data-tab="regular">Быстрый поиск</button>
         </div>
-
-        <!-- Категории продуктов (аккордеон) -->
-        <div class="categories-section">
-            <h3>📁 Категории продуктов</h3>
-            <div id="categoriesContainer" class="categories-container">
-                <!-- Категории загружаются через JavaScript -->
-            </div>
-            <button id="showAllBtn" class="show-all-btn">
-                <span>↓ Показать все категории</span>
-                <span class="count">(8)</span>
-            </button>
+        
+        <div id="aiRecipes" class="recipes-grid">
+            <!-- AI recipes will appear here -->
         </div>
-
-        <!-- Основные кнопки действий -->
-        <div class="actions-section">
-            <button id="findRecipesBtn" class="main-cta" disabled>
-                <span class="text">Выберите минимум 1 продукт</span>
-                <span class="count"></span>
-            </button>
-            
-            <button id="aiRecipeBtn" class="ai-cta">
-                <span>✨ Создать ИИ-рецепт</span>
-                <span class="badge">3 бесплатно</span>
-            </button>
+        
+        <div id="regularRecipes" class="recipes-grid" style="display:none">
+            <!-- Regular recipes will appear here -->
         </div>
-
-        <!-- Результаты поиска рецептов -->
-        <div id="recipesSection" class="recipes-section hidden">
-            <h3>🍳 Подходящие рецепты: <span id="recipesCount">0</span></h3>
-            <div id="recipesGrid" class="recipes-grid">
-                <!-- Карточки рецептов появляются здесь -->
-            </div>
+        
+        <div id="emptyState" class="empty-state">
+            <div class="emoji">🍽️</div>
+            <h3>Добавьте продукты из холодильника</h3>
+            <p>ИИ-шеф создаст уникальный рецепт именно для вашего набора</p>
         </div>
-
-        <!-- Футер -->
-        <footer class="footer">
-            <p>ChefZero © 2025 — Готовьте из того, что есть дома</p>
-            <p class="footer-sub">0 рублей → вкусный ужин</p>
-        </footer>
     </main>
 
-    <!-- Модальное окно премиума -->
-    <div id="premiumModal" class="modal hidden">
-        <div class="modal-content premium-modal">
-            <button class="close-modal">&times;</button>
-            <h2>🍳 Безлимитный ИИ-шеф</h2>
-            <p class="subtitle">Один раз заплатил — готовишь как бог</p>
-            
-            <div class="plans">
-                <div class="plan recommended">
-                    <div class="badge">ПОПУЛЯРНО</div>
-                    <div class="name">Премиум на месяц</div>
-                    <div class="price">199 ₽</div>
-                    <div class="old-price">299 ₽</div>
-                    <ul class="features">
-                        <li>✓ Безлимит ИИ-рецептов</li>
-                        <li>✓ Приоритетная поддержка</li>
-                        <li>✓ Рецепты без водяного знака</li>
-                    </ul>
-                    <button class="buy-btn">Купить сейчас</button>
+    <!-- Payment Modal -->
+    <div id="paymentModal" class="modal">
+        <div class="modal-content">
+            <h2>🚀 Премиум доступ</h2>
+            <p>ИИ-рецепты: <span id="freeCount">3</span>/3 осталось на неделю</p>
+            <div class="pricing">
+                <div class="plan" data-plan="monthly">
+                    <h3>299 ₽/месяц</h3>
+                    <p>∞ ИИ-рецептов</p>
+                    <p>Приоритетная генерация</p>
+                    <button class="select-plan">Выбрать</button>
                 </div>
-                
-                <div class="plan">
-                    <div class="name">10 ИИ-рецептов</div>
-                    <div class="price">99 ₽</div>
-                    <button class="buy-btn">Купить пакет</button>
+                <div class="plan" data-plan="pack">
+                    <h3>99 ₽ за 10</h3>
+                    <p>10 ИИ-рецептов</p>
+                    <p>Без срока действия</p>
+                    <button class="select-plan">Выбрать</button>
                 </div>
             </div>
+            <div id="paymentFrame"></div>
+            <button class="close-modal">Позже</button>
         </div>
     </div>
 
-    <!-- Модалка рецепта -->
-    <div id="recipeModal" class="modal hidden">
+    <!-- Recipe Modal -->
+    <div id="recipeModal" class="modal">
         <div class="modal-content recipe-modal">
-            <button class="close-modal">&times;</button>
-            <div id="recipeContent">
-                <!-- Контент рецепта подгружается динамически -->
+            <button class="close-modal">×</button>
+            <div class="recipe-header">
+                <img id="recipeImage" src="" alt="Блюдо" loading="lazy">
+                <div class="recipe-meta">
+                    <h2 id="recipeTitle"></h2>
+                    <div class="meta-chips">
+                        <span id="recipeTime"></span>
+                        <span id="recipePortions"></span>
+                        <span id="recipeDifficulty"></span>
+                    </div>
+                    <button id="saveRecipe" class="save-btn">💾 Сохранить</button>
+                </div>
+            </div>
+            <div class="recipe-body">
+                <div class="ingredients">
+                    <h3>Ингредиенты</h3>
+                    <ul id="recipeIngredients"></ul>
+                </div>
+                <div class="steps">
+                    <h3>Приготовление</h3>
+                    <ol id="recipeSteps"></ol>
+                </div>
             </div>
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <!-- Progress Bar -->
+    <div id="progressBar" class="progress-container">
+        <div class="progress-bar">
+            <div class="progress-fill"></div>
+        </div>
+        <p class="progress-text">ИИ-шеф готовит рецепт...</p>
+    </div>
+
+    <!-- Confetti Canvas -->
+    <canvas id="confettiCanvas"></canvas>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vanilla-tilt@1.8.0/dist/vanilla-tilt.min.js"></script>
+    <script src="animations.js"></script>
+    <script src="app.js" type="module"></script>
 </body>
 </html>
