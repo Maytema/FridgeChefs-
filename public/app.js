@@ -1,539 +1,573 @@
-// ChefZero - Основное приложение
+import { initAnimations } from './animations.js';
+
 class ChefZeroApp {
     constructor() {
         this.selectedProducts = new Set();
-        this.products = [];
-        this.recipes = [];
-        this.categories = [];
-        
+        this.currentRecipes = [];
+        this.limits = {
+            free: 3,
+            used: 0,
+            resetDate: null
+        };
+        this.deviceId = this.getDeviceId();
         this.init();
     }
-    
+
     async init() {
-        // Загружаем данные
-        await this.loadData();
+        // Load limits
+        this.loadLimits();
         
-        // Инициализируем компоненты
-        this.initSearch();
-        this.initCategories();
-        this.initEventListeners();
-        this.updateUI();
+        // Initialize animations
+        initAnimations();
         
-        console.log('ChefZero инициализирован! 🍳');
+        // Setup event listeners
+        this.setupEventListeners();
+        
+        // Load products for autocomplete
+        await this.loadProducts();
+        
+        // Animate stats
+        this.animateStats();
+        
+        // Register PWA
+        this.registerServiceWorker();
     }
-    
-    async loadData() {
+
+    getDeviceId() {
+        let id = localStorage.getItem('chefzero_device_id');
+        if (!id) {
+            id = 'dev_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('chefzero_device_id', id);
+        }
+        return id;
+    }
+
+    loadLimits() {
+        const saved = localStorage.getItem('chefzero_limits');
+        if (saved) {
+            this.limits = JSON.parse(saved);
+            // Check if week has passed
+            const now = Date.now();
+            if (this.limits.resetDate && now > this.limits.resetDate) {
+                this.limits.used = 0;
+                this.limits.resetDate = now + (7 * 24 * 60 * 60 * 1000);
+            }
+        } else {
+            // First time - set reset date to a week from now
+            this.limits.resetDate = Date.now() + (7 * 24 * 60 * 60 * 1000);
+        }
+        this.updateLimitsDisplay();
+    }
+
+    updateLimitsDisplay() {
+        const remaining = this.limits.free - this.limits.used;
+        document.getElementById('freeCount').textContent = remaining;
+    }
+
+    async loadProducts() {
         try {
-            // Загружаем продукты
-            const productsResponse = await fetch('../data/products.json');
-            this.products = await productsResponse.json();
-            
-            // Загружаем рецепты
-            const recipesResponse = await fetch('../data/recipes.json');
-            this.recipes = await recipesResponse.json();
-            
-            // Формируем категории из продуктов
-            this.categories = this.extractCategories();
+            const response = await fetch('/api/products');
+            this.products = await response.json();
         } catch (error) {
-            console.error('Ошибка загрузки данных:', error);
+            console.error('Failed to load products:', error);
+            this.products = [];
         }
     }
-    
-    extractCategories() {
-        const categoriesMap = new Map();
-        
-        this.products.forEach(product => {
-            if (!categoriesMap.has(product.category)) {
-                categoriesMap.set(product.category, {
-                    name: product.category,
-                    emoji: product.categoryEmoji || '📦',
-                    products: []
-                });
-            }
-            categoriesMap.get(product.category).products.push(product);
+
+    setupEventListeners() {
+        // Search input
+        const searchInput = document.getElementById('productSearch');
+        searchInput.addEventListener('input', (e) => this.handleSearchInput(e));
+        searchInput.addEventListener('focus', () => this.showAutocomplete());
+        searchInput.addEventListener('blur', () => setTimeout(() => this.hideAutocomplete(), 200));
+
+        // AI Recipe button
+        document.getElementById('aiRecipeBtn').addEventListener('click', () => this.generateAIRecipe());
+
+        // Theme toggle
+        document.getElementById('themeToggle').addEventListener('click', () => this.toggleTheme());
+
+        // Tabs
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
         });
-        
-        return Array.from(categoriesMap.values());
-    }
-    
-    initSearch() {
-        const searchInput = document.getElementById('searchInput');
-        const liveResults = document.getElementById('liveResults');
-        
-        searchInput.addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase().trim();
-            
-            if (query.length < 2) {
-                liveResults.style.display = 'none';
-                return;
-            }
-            
-            // Поиск продуктов
-            const results = this.products.filter(product => 
-                product.name.toLowerCase().includes(query) ||
-                product.name.toLowerCase().replace(/[^а-я]/g, '').includes(query)
-            ).slice(0, 8);
-            
-            this.renderSearchResults(results);
-            liveResults.style.display = 'block';
+
+        // Modals
+        document.querySelectorAll('.close-modal').forEach(btn => {
+            btn.addEventListener('click', () => this.closeModals());
         });
-        
-        // Закрываем результаты при клике вне
-        document.addEventListener('click', (e) => {
-            if (!searchInput.contains(e.target) && !liveResults.contains(e.target)) {
-                liveResults.style.display = 'none';
-            }
+
+        // Payment plans
+        document.querySelectorAll('.select-plan').forEach(btn => {
+            btn.addEventListener('click', (e) => this.selectPlan(e.target.closest('.plan').dataset.plan));
         });
     }
-    
-    renderSearchResults(results) {
-        const container = document.getElementById('liveResults');
-        
-        if (results.length === 0) {
-            container.innerHTML = `
-                <div class="live-result-item">
-                    <div class="emoji">😕</div>
-                    <div class="name">Ничего не найдено</div>
-                </div>
-            `;
+
+    handleSearchInput(e) {
+        const query = e.target.value.toLowerCase().trim();
+        if (query.length < 2) {
+            this.hideAutocomplete();
             return;
         }
-        
-        container.innerHTML = results.map(product => `
-            <div class="live-result-item" data-id="${product.id}">
-                <div class="emoji">${product.emoji}</div>
-                <div class="name">${product.name}</div>
-                <div class="action">
-                    ${this.selectedProducts.has(product.id) ? '✓' : '+'}
-                </div>
+
+        const matches = this.products.filter(product => 
+            product.name.toLowerCase().includes(query) ||
+            product.searchTags.some(tag => tag.includes(query))
+        ).slice(0, 8);
+
+        this.showAutocomplete(matches);
+    }
+
+    showAutocomplete(items = []) {
+        const container = document.getElementById('autocomplete');
+        if (items.length === 0) {
+            container.style.display = 'none';
+            return;
+        }
+
+        container.innerHTML = items.map(item => `
+            <div class="autocomplete-item" data-id="${item.id}">
+                <span class="emoji">${item.emoji}</span>
+                <span>${item.name}</span>
+                <small>${item.category}</small>
             </div>
         `).join('');
+
+        container.style.display = 'block';
         
-        // Добавляем обработчики кликов
-        container.querySelectorAll('.live-result-item').forEach(item => {
+        // Add click handlers
+        container.querySelectorAll('.autocomplete-item').forEach(item => {
             item.addEventListener('click', (e) => {
-                const productId = parseInt(item.dataset.id);
-                this.toggleProduct(productId);
-                this.updateUI();
-                document.getElementById('liveResults').style.display = 'none';
-                document.getElementById('searchInput').value = '';
+                this.addProduct({
+                    id: e.currentTarget.dataset.id,
+                    name: e.currentTarget.children[1].textContent,
+                    emoji: e.currentTarget.children[0].textContent
+                });
+                document.getElementById('productSearch').value = '';
+                this.hideAutocomplete();
             });
         });
     }
-    
-    initCategories() {
-        const container = document.getElementById('categoriesContainer');
-        
-        // Показываем только первые 5 категорий
-        const visibleCategories = this.categories.slice(0, 5);
-        const hiddenCategories = this.categories.slice(5);
-        
-        container.innerHTML = visibleCategories.map(category => `
-            <div class="category" data-category="${category.name}">
-                <div class="category-header">
-                    <div class="emoji">${category.emoji}</div>
-                    <div class="name">${category.name}</div>
-                    <div class="count">(${category.products.length})</div>
-                    <button class="toggle">▼</button>
-                </div>
-                <div class="category-items hidden">
-                    ${this.renderCategoryProducts(category.products)}
-                </div>
-            </div>
-        `).join('');
-        
-        // Инициализируем аккордеон
-        this.initCategoryAccordion();
-        
-        // Кнопка "Показать все"
-        const showAllBtn = document.getElementById('showAllBtn');
-        showAllBtn.querySelector('.count').textContent = `(${hiddenCategories.length})`;
-        
-        showAllBtn.addEventListener('click', () => {
-            // Показываем все категории
-            container.innerHTML = this.categories.map(category => `
-                <div class="category" data-category="${category.name}">
-                    <div class="category-header">
-                        <div class="emoji">${category.emoji}</div>
-                        <div class="name">${category.name}</div>
-                        <div class="count">(${category.products.length})</div>
-                        <button class="toggle">▶</button>
-                    </div>
-                    <div class="category-items hidden">
-                        ${this.renderCategoryProducts(category.products)}
-                    </div>
-                </div>
-            `).join('');
+
+    hideAutocomplete() {
+        document.getElementById('autocomplete').style.display = 'none';
+    }
+
+    addProduct(product) {
+        if (this.selectedProducts.size >= 15) {
+            this.showToast('Максимум 15 продуктов!', 'error');
+            return;
+        }
+
+        const productKey = `${product.id}_${product.name}`;
+        if (this.selectedProducts.has(productKey)) {
+            this.showToast('Продукт уже добавлен!', 'warning');
+            return;
+        }
+
+        this.selectedProducts.add(productKey);
+        this.renderChips();
+        this.searchRecipes();
+    }
+
+    renderChips() {
+        const container = document.getElementById('productChips');
+        const chips = Array.from(this.selectedProducts).map(key => {
+            const [id, ...nameParts] = key.split('_');
+            const name = nameParts.join('_');
+            const emoji = this.products.find(p => p.id == id)?.emoji || '🍕';
             
-            this.initCategoryAccordion();
-            showAllBtn.style.display = 'none';
+            return `
+                <div class="chip" data-key="${key}" draggable="true">
+                    <span class="emoji">${emoji}</span>
+                    <span class="name">${name}</span>
+                    <button class="delete" aria-label="Удалить">×</button>
+                </div>
+            `;
+        });
+
+        container.innerHTML = chips.join('');
+        document.getElementById('selectedCount').textContent = this.selectedProducts.size;
+
+        // Add drag & drop
+        this.setupDragAndDrop();
+        
+        // Add delete handlers
+        container.querySelectorAll('.delete').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const chip = e.target.closest('.chip');
+                this.removeProduct(chip.dataset.key);
+            });
         });
     }
-    
-    renderCategoryProducts(products) {
-        return products.map(product => `
-            <div class="product-item ${this.selectedProducts.has(product.id) ? 'selected' : ''}" 
-                 data-id="${product.id}">
-                <div class="emoji">${product.emoji}</div>
-                <div class="name">${product.name}</div>
-            </div>
-        `).join('');
-    }
-    
-    initCategoryAccordion() {
-        document.querySelectorAll('.category-header').forEach(header => {
-            header.addEventListener('click', (e) => {
-                if (e.target.classList.contains('toggle')) return;
-                
-                const category = header.parentElement;
-                const items = category.querySelector('.category-items');
-                const toggle = category.querySelector('.toggle');
-                
-                // Закрываем другие открытые категории
-                document.querySelectorAll('.category-items').forEach(otherItems => {
-                    if (otherItems !== items && !otherItems.classList.contains('hidden')) {
-                        otherItems.classList.add('hidden');
-                        otherItems.parentElement.querySelector('.toggle').textContent = '▶';
-                    }
-                });
-                
-                // Переключаем текущую
-                if (items.classList.contains('hidden')) {
-                    items.classList.remove('hidden');
-                    toggle.textContent = '▼';
+
+    setupDragAndDrop() {
+        const container = document.getElementById('productChips');
+        let dragged = null;
+
+        container.querySelectorAll('.chip').forEach(chip => {
+            chip.addEventListener('dragstart', (e) => {
+                dragged = chip;
+                setTimeout(() => chip.classList.add('dragging'), 0);
+            });
+
+            chip.addEventListener('dragend', () => {
+                chip.classList.remove('dragging');
+                dragged = null;
+            });
+
+            chip.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                const afterElement = this.getDragAfterElement(container, e.clientX);
+                if (afterElement == null) {
+                    container.appendChild(dragged);
                 } else {
-                    items.classList.add('hidden');
-                    toggle.textContent = '▶';
+                    container.insertBefore(dragged, afterElement);
                 }
             });
+        });
+    }
+
+    getDragAfterElement(container, x) {
+        const draggableElements = [...container.querySelectorAll('.chip:not(.dragging)')];
+        
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = x - box.left - box.width / 2;
             
-            // Обработчик кнопки toggle
-            const toggleBtn = header.querySelector('.toggle');
-            toggleBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                header.click();
-            });
-        });
-        
-        // Обработчики для продуктов в категориях
-        document.querySelectorAll('.product-item').forEach(item => {
-            item.addEventListener('click', (e) => {
-                const productId = parseInt(item.dataset.id);
-                this.toggleProduct(productId);
-                this.updateUI();
-            });
-        });
-    }
-    
-    toggleProduct(productId) {
-        if (this.selectedProducts.has(productId)) {
-            this.selectedProducts.delete(productId);
-        } else {
-            this.selectedProducts.add(productId);
-        }
-    }
-    
-    updateUI() {
-        // Обновляем счетчик выбранных продуктов
-        const selectedCount = document.getElementById('selectedCount');
-        selectedCount.textContent = this.selectedProducts.size;
-        
-        // Обновляем чипсы
-        this.updateChips();
-        
-        // Обновляем кнопку поиска рецептов
-        this.updateMainButton();
-        
-        // Обновляем состояние продуктов в интерфейсе
-        this.updateProductSelection();
-        
-        // Если выбраны продукты, показываем секцию рецептов
-        if (this.selectedProducts.size > 0) {
-            this.showRecipes();
-        } else {
-            this.hideRecipes();
-        }
-    }
-    
-    updateChips() {
-        const container = document.getElementById('selectedChips');
-        const selectedProducts = Array.from(this.selectedProducts).map(id => 
-            this.products.find(p => p.id === id)
-        ).filter(Boolean);
-        
-        container.innerHTML = selectedProducts.map(product => `
-            <div class="chip" data-id="${product.id}">
-                <span class="emoji">${product.emoji}</span>
-                <span>${product.name}</span>
-                <button class="remove">×</button>
-            </div>
-        `).join('');
-        
-        // Добавляем обработчики удаления
-        container.querySelectorAll('.chip .remove').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const chip = btn.closest('.chip');
-                const productId = parseInt(chip.dataset.id);
-                this.selectedProducts.delete(productId);
-                this.updateUI();
-            });
-        });
-    }
-    
-    updateMainButton() {
-        const btn = document.getElementById('findRecipesBtn');
-        const countSpan = btn.querySelector('.count');
-        const textSpan = btn.querySelector('.text');
-        
-        if (this.selectedProducts.size === 0) {
-            btn.disabled = true;
-            textSpan.textContent = 'Выберите минимум 1 продукт';
-            countSpan.textContent = '';
-        } else {
-            btn.disabled = false;
-            textSpan.textContent = 'Найти рецепты';
-            
-            // Подсчитываем сколько рецептов можно приготовить
-            const matchingRecipes = this.findMatchingRecipes();
-            countSpan.textContent = `Из ${this.selectedProducts.size} продуктов → ${matchingRecipes.length} рецептов`;
-        }
-    }
-    
-    updateProductSelection() {
-        // Обновляем все продукты в интерфейсе
-        document.querySelectorAll('.product-item').forEach(item => {
-            const productId = parseInt(item.dataset.id);
-            if (this.selectedProducts.has(productId)) {
-                item.classList.add('selected');
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
             } else {
-                item.classList.remove('selected');
+                return closest;
             }
-        });
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
     }
-    
-    findMatchingRecipes() {
-        return this.recipes.filter(recipe => {
-            // Проверяем, есть ли у нас все продукты для рецепта
-            return recipe.products.every(productId => 
-                this.selectedProducts.has(productId)
-            );
-        });
+
+    removeProduct(key) {
+        const chip = document.querySelector(`[data-key="${key}"]`);
+        if (chip) {
+            // Explode animation
+            chip.style.animation = 'explode 0.5s forwards';
+            setTimeout(() => {
+                this.selectedProducts.delete(key);
+                this.renderChips();
+                this.searchRecipes();
+            }, 300);
+        }
     }
-    
-    showRecipes() {
-        const section = document.getElementById('recipesSection');
-        section.classList.remove('hidden');
-        
-        const matchingRecipes = this.findMatchingRecipes();
-        const countSpan = document.getElementById('recipesCount');
-        countSpan.textContent = matchingRecipes.length;
-        
-        this.renderRecipes(matchingRecipes);
-    }
-    
-    hideRecipes() {
-        const section = document.getElementById('recipesSection');
-        section.classList.add('hidden');
-    }
-    
-    renderRecipes(recipes) {
-        const container = document.getElementById('recipesGrid');
-        
-        if (recipes.length === 0) {
-            container.innerHTML = `
-                <div class="no-recipes">
-                    <div style="font-size: 48px; text-align: center; margin: 40px 0;">😕</div>
-                    <h3 style="text-align: center; color: var(--text-secondary);">
-                        Нет рецептов для выбранных продуктов
-                    </h3>
-                    <p style="text-align: center; color: var(--text-secondary);">
-                        Попробуйте выбрать другие продукты или создайте ИИ-рецепт
-                    </p>
-                </div>
-            `;
+
+    async searchRecipes() {
+        if (this.selectedProducts.size === 0) {
+            document.getElementById('emptyState').style.display = 'block';
+            document.getElementById('aiRecipes').innerHTML = '';
             return;
         }
+
+        document.getElementById('emptyState').style.display = 'none';
         
-        container.innerHTML = recipes.map(recipe => `
+        // Show regular recipes
+        try {
+            const response = await fetch('/api/recipes/find', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    products: Array.from(this.selectedProducts)
+                })
+            });
+            
+            this.currentRecipes = await response.json();
+            this.renderRegularRecipes();
+        } catch (error) {
+            console.error('Failed to search recipes:', error);
+        }
+    }
+
+    renderRegularRecipes() {
+        const container = document.getElementById('regularRecipes');
+        container.innerHTML = this.currentRecipes.slice(0, 6).map(recipe => `
             <div class="recipe-card" data-id="${recipe.id}">
-                <div class="recipe-header">
-                    <div class="recipe-title">
-                        <span>${recipe.emoji || '🍳'}</span>
-                        <span>${recipe.name}</span>
-                    </div>
+                <img src="${recipe.image}" alt="${recipe.title}" loading="lazy">
+                <div class="recipe-card-content">
+                    <h3>${recipe.title}</h3>
+                    <p>${recipe.description}</p>
                     <div class="recipe-meta">
-                        <span>⏱️ ${recipe.time} мин</span>
-                        <span>🎚️ ${this.getDifficultyText(recipe.difficulty)}</span>
-                        <span>👤 ${recipe.servings || 2} порции</span>
+                        <span>⏱️ ${recipe.time}</span>
+                        <span>👥 ${recipe.portions}</span>
+                        <span>${recipe.difficulty === 'просто' ? '🟢' : recipe.difficulty === 'средне' ? '🟡' : '🔴'} ${recipe.difficulty}</span>
                     </div>
-                    <div class="recipe-products">
-                        <strong>Ингредиенты:</strong> ${this.getRecipeProductsText(recipe)}
-                    </div>
-                </div>
-                <div class="recipe-actions">
-                    <button class="recipe-btn view-recipe" data-id="${recipe.id}">
-                        👁️ Посмотреть
-                    </button>
-                    <button class="recipe-btn save-recipe" data-id="${recipe.id}">
-                        ❤️ Сохранить
-                    </button>
                 </div>
             </div>
         `).join('');
-        
-        // Добавляем обработчики для кнопок рецептов
-        this.initRecipeActions();
-    }
-    
-    getRecipeProductsText(recipe) {
-        return recipe.products.map(productId => {
-            const product = this.products.find(p => p.id === productId);
-            return product ? product.name : 'Неизвестный продукт';
-        }).join(', ');
-    }
-    
-    getDifficultyText(difficulty) {
-        const levels = {
-            1: 'Легко',
-            2: 'Средне',
-            3: 'Сложно'
-        };
-        return levels[difficulty] || 'Легко';
-    }
-    
-    initRecipeActions() {
-        // Кнопка просмотра рецепта
-        document.querySelectorAll('.view-recipe').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const recipeId = parseInt(btn.dataset.id);
-                this.showRecipeModal(recipeId);
-            });
-        });
-        
-        // Кнопка сохранения рецепта
-        document.querySelectorAll('.save-recipe').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const recipeId = parseInt(btn.dataset.id);
-                this.saveRecipe(recipeId);
+
+        // Add click handlers
+        container.querySelectorAll('.recipe-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const recipe = this.currentRecipes.find(r => r.id == card.dataset.id);
+                this.showRecipe(recipe);
             });
         });
     }
-    
-    showRecipeModal(recipeId) {
-        const recipe = this.recipes.find(r => r.id === recipeId);
-        if (!recipe) return;
-        
-        const modal = document.getElementById('recipeModal');
-        const content = document.getElementById('recipeContent');
-        
-        // Получаем названия продуктов
-        const productNames = recipe.products.map(id => {
-            const product = this.products.find(p => p.id === id);
-            return product ? `${product.emoji} ${product.name}` : 'Неизвестный продукт';
-        });
-        
-        content.innerHTML = `
-            <div class="recipe-modal-content">
-                <h2>${recipe.emoji || '🍳'} ${recipe.name}</h2>
-                
+
+    async generateAIRecipe() {
+        // Check limits
+        if (this.limits.used >= this.limits.free) {
+            this.showPaymentModal();
+            return;
+        }
+
+        if (this.selectedProducts.size === 0) {
+            this.showToast('Добавьте хотя бы один продукт!', 'warning');
+            return;
+        }
+
+        // Show progress
+        this.showProgressBar();
+
+        try {
+            const products = Array.from(this.selectedProducts).map(key => {
+                const [_, ...nameParts] = key.split('_');
+                return nameParts.join('_');
+            });
+
+            const response = await fetch('/api/ai/recipe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ products })
+            });
+
+            if (!response.ok) throw new Error('AI request failed');
+
+            const recipe = await response.json();
+            
+            // Update limits
+            this.limits.used++;
+            localStorage.setItem('chefzero_limits', JSON.stringify(this.limits));
+            this.updateLimitsDisplay();
+            
+            // Show recipe
+            this.hideProgressBar();
+            this.showRecipe(recipe);
+            
+            // Add to AI recipes grid
+            this.addAIRecipeCard(recipe);
+            
+        } catch (error) {
+            console.error('Failed to generate AI recipe:', error);
+            this.hideProgressBar();
+            this.showToast('Ошибка генерации. Попробуйте снова.', 'error');
+        }
+    }
+
+    addAIRecipeCard(recipe) {
+        const container = document.getElementById('aiRecipes');
+        const card = document.createElement('div');
+        card.className = 'recipe-card';
+        card.dataset.id = 'ai_' + Date.now();
+        card.innerHTML = `
+            <img src="${recipe.image}" alt="${recipe.title}" loading="lazy">
+            <div class="recipe-card-content">
+                <h3>${recipe.title} <small>✨ ИИ</small></h3>
                 <div class="recipe-meta">
-                    <div><strong>⏱️ Время:</strong> ${recipe.time} минут</div>
-                    <div><strong>🎚️ Сложность:</strong> ${this.getDifficultyText(recipe.difficulty)}</div>
-                    <div><strong>👤 Порции:</strong> ${recipe.servings || 2}</div>
-                </div>
-                
-                <div class="recipe-section">
-                    <h3>📋 Ингредиенты:</h3>
-                    <ul>
-                        ${productNames.map(name => `<li>${name}</li>`).join('')}
-                    </ul>
-                </div>
-                
-                <div class="recipe-section">
-                    <h3>👩‍🍳 Приготовление:</h3>
-                    <ol>
-                        ${recipe.steps.map((step, i) => `<li>${step}</li>`).join('')}
-                    </ol>
-                </div>
-                
-                <div class="recipe-actions">
-                    <button class="recipe-btn" onclick="window.print()">
-                        🖨️ Распечатать рецепт
-                    </button>
-                    <button class="recipe-btn" onclick="alert('PDF скачивание в разработке')">
-                        📥 Скачать PDF
-                    </button>
+                    <span>⏱️ ${recipe.time}</span>
+                    <span>👥 ${recipe.portions}</span>
+                    <span>${recipe.difficulty === 'просто' ? '🟢' : recipe.difficulty === 'средне' ? '🟡' : '🔴'} ${recipe.difficulty}</span>
                 </div>
             </div>
         `;
         
-        modal.classList.remove('hidden');
+        card.addEventListener('click', () => this.showRecipe(recipe));
+        container.insertBefore(card, container.firstChild);
         
-        // Закрытие модалки
-        modal.querySelector('.close-modal').addEventListener('click', () => {
-            modal.classList.add('hidden');
-        });
-        
-        // Закрытие по клику вне модалки
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                modal.classList.add('hidden');
-            }
-        });
-    }
-    
-    saveRecipe(recipeId) {
-        // Сохраняем рецепт в localStorage
-        let saved = JSON.parse(localStorage.getItem('savedRecipes') || '[]');
-        if (!saved.includes(recipeId)) {
-            saved.push(recipeId);
-            localStorage.setItem('savedRecipes', JSON.stringify(saved));
-            alert('Рецепт сохранен в избранное! ❤️');
-        } else {
-            alert('Этот рецепт уже сохранен!');
+        // Limit to 6 cards
+        if (container.children.length > 6) {
+            container.removeChild(container.lastChild);
         }
     }
-    
-    initEventListeners() {
-        // Кнопка поиска рецептов
-        document.getElementById('findRecipesBtn').addEventListener('click', () => {
-            this.showRecipes();
-            // Прокручиваем к результатам
-            document.getElementById('recipesSection').scrollIntoView({ 
-                behavior: 'smooth' 
+
+    showRecipe(recipe) {
+        document.getElementById('recipeTitle').textContent = recipe.title;
+        document.getElementById('recipeImage').src = recipe.image;
+        document.getElementById('recipeTime').textContent = `⏱️ ${recipe.time}`;
+        document.getElementById('recipePortions').textContent = `👥 ${recipe.portions}`;
+        document.getElementById('recipeDifficulty').textContent = 
+            `${recipe.difficulty === 'просто' ? '🟢' : recipe.difficulty === 'средне' ? '🟡' : '🔴'} ${recipe.difficulty}`;
+        
+        document.getElementById('recipeIngredients').innerHTML = 
+            recipe.ingredients.map(i => `<li>${i}</li>`).join('');
+        
+        document.getElementById('recipeSteps').innerHTML = 
+            recipe.steps.map(s => `<li>${s}</li>`).join('');
+        
+        document.getElementById('recipeModal').classList.add('active');
+        
+        // 3D flip effect
+        gsap.fromTo('.recipe-modal', 
+            { rotationY: -90, opacity: 0 },
+            { rotationY: 0, opacity: 1, duration: 0.8, ease: 'back.out(1.7)' }
+        );
+    }
+
+    showPaymentModal() {
+        document.getElementById('paymentModal').classList.add('active');
+    }
+
+    async selectPlan(plan) {
+        try {
+            const response = await fetch('/api/payment/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    plan,
+                    deviceId: this.deviceId
+                })
             });
-        });
-        
-        // Кнопка ИИ-рецепта
-        document.getElementById('aiRecipeBtn').addEventListener('click', () => {
-            if (this.selectedProducts.size === 0) {
-                alert('Сначала выберите продукты!');
-                return;
-            }
             
-            const aiCount = parseInt(document.querySelector('.counter').textContent);
-            if (aiCount <= 0) {
-                this.showPremiumModal();
-                return;
-            }
+            const payment = await response.json();
             
-            alert('ИИ-рецепт в разработке! Пока используйте обычные рецепты 😊');
-            // Обновляем счетчик
-            document.querySelector('.counter').textContent = aiCount - 1;
-        });
+            // Show payment iframe
+            const frame = document.getElementById('paymentFrame');
+            frame.innerHTML = `
+                <iframe src="${payment.paymentUrl}" 
+                        style="width:100%; height:500px; border:none; border-radius:var(--radius)">
+                </iframe>
+            `;
+            
+            // Poll for payment status
+            this.checkPaymentStatus(payment.id);
+            
+        } catch (error) {
+            console.error('Payment error:', error);
+            this.showToast('Ошибка оплаты', 'error');
+        }
+    }
+
+    async checkPaymentStatus(paymentId) {
+        const check = async () => {
+            try {
+                const response = await fetch(`/api/payment/status/${paymentId}`);
+                const status = await response.json();
+                
+                if (status.status === 'paid') {
+                    // Success!
+                    this.limits.free += status.addedCredits;
+                    localStorage.setItem('chefzero_limits', JSON.stringify(this.limits));
+                    this.updateLimitsDisplay();
+                    
+                    this.closeModals();
+                    this.showConfetti();
+                    this.showToast('Премиум активирован! 🎉', 'success');
+                } else if (status.status === 'pending') {
+                    setTimeout(check, 3000);
+                }
+            } catch (error) {
+                console.error('Status check error:', error);
+            }
+        };
         
-        // Кнопка премиума
-        document.getElementById('premiumBtn').addEventListener('click', () => {
-            this.showPremiumModal();
-        });
+        setTimeout(check, 3000);
+    }
+
+    showProgressBar() {
+        const container = document.getElementById('progressBar');
+        const fill = container.querySelector('.progress-fill');
         
-        // Закрытие премиум-модалки
-        document.querySelectorAll('.close-modal').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.getElementById('premiumModal').classList.add('hidden');
+        container.style.display = 'flex';
+        
+        // Animate progress
+        let progress = 0;
+        const interval = setInterval(() => {
+            progress += Math.random() * 15;
+            if (progress > 95) clearInterval(interval);
+            fill.style.width = Math.min(progress, 95) + '%';
+        }, 300);
+        
+        this.progressInterval = interval;
+    }
+
+    hideProgressBar() {
+        const container = document.getElementById('progressBar');
+        const fill = container.querySelector('.progress-fill');
+        
+        if (this.progressInterval) {
+            clearInterval(this.progressInterval);
+        }
+        
+        fill.style.width = '100%';
+        setTimeout(() => {
+            container.style.display = 'none';
+            fill.style.width = '0%';
+        }, 500);
+    }
+
+    showConfetti() {
+        if (window.confetti) {
+            confetti({
+                particleCount: 150,
+                spread: 70,
+                origin: { y: 0.6 }
             });
+        }
+    }
+
+    showToast(message, type = 'info') {
+        // Implement toast notification
+        console.log(`[${type}] ${message}`);
+    }
+
+    switchTab(tab) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+        
+        document.getElementById('aiRecipes').style.display = tab === 'ai' ? 'grid' : 'none';
+        document.getElementById('regularRecipes').style.display = tab === 'regular' ? 'grid' : 'none';
+    }
+
+    toggleTheme() {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+        localStorage.setItem('chefzero_theme', isDark ? 'light' : 'dark');
+    }
+
+    closeModals() {
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.classList.remove('active');
         });
     }
+
+    animateStats() {
+        document.querySelectorAll('.number').forEach(el => {
+            const target = parseInt(el.dataset.count);
+            let current = 0;
+            const increment = target / 50;
+            
+            const timer = setInterval(() => {
+                current += increment;
+                if (current >= target) {
+                    el.textContent = target;
+                    clearInterval(timer);
+                } else {
+                    el.textContent = Math.floor(current);
+                }
+            }, 30);
+        });
+    }
+
+    registerServiceWorker() {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('Service Worker registered'))
+                .catch(err => console.log('Service Worker registration failed:', err));
+        }
+    }
+}
+
+// Initialize app when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    window.app = new ChefZeroApp();
     
-    showPremi
+    // Set theme from localStorage
+    const savedTheme = localStorage.getItem('chefzero_theme') || 
+                       (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', savedTheme);
+});
