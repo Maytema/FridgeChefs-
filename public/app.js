@@ -1,9 +1,10 @@
-import { initAnimations } from './animations.js';
+import { initAnimations, createParticleBurst } from './animations.js';
 
 class ChefZeroApp {
     constructor() {
         this.selectedProducts = new Set();
         this.currentRecipes = [];
+        this.displayedRecipes = 3; // Показываем сначала 3 рецепта
         this.limits = {
             free: 3,
             used: 0,
@@ -26,11 +27,14 @@ class ChefZeroApp {
         // Load products for autocomplete
         await this.loadProducts();
         
-        // Animate stats
-        this.animateStats();
+        // Setup categories
+        this.setupCategories();
         
         // Register PWA
         this.registerServiceWorker();
+        
+        // Handle mobile keyboard
+        this.handleMobileKeyboard();
     }
 
     getDeviceId() {
@@ -56,56 +60,159 @@ class ChefZeroApp {
             // First time - set reset date to a week from now
             this.limits.resetDate = Date.now() + (7 * 24 * 60 * 60 * 1000);
         }
-        this.updateLimitsDisplay();
-    }
-
-    updateLimitsDisplay() {
-        const remaining = this.limits.free - this.limits.used;
-        document.getElementById('freeCount').textContent = remaining;
     }
 
     async loadProducts() {
         try {
             const response = await fetch('/api/products');
             this.products = await response.json();
+            console.log('📦 Загружено продуктов:', this.products.length);
         } catch (error) {
             console.error('Failed to load products:', error);
             this.products = [];
         }
     }
 
+    setupCategories() {
+        const categories = [...new Set(this.products.map(p => p.category))];
+        
+        // Основные категории (первые 5)
+        const mainCategories = categories.slice(0, 5);
+        
+        // Дополнительные категории
+        const moreCategories = categories.slice(5);
+        
+        // Заполняем дополнительные категории
+        const moreContainer = document.getElementById('moreCategories');
+        if (moreContainer && moreCategories.length > 0) {
+            moreContainer.innerHTML = moreCategories.map(cat => `
+                <button class="category-chip" data-category="${cat}">
+                    ${this.getCategoryIcon(cat)} ${this.capitalizeFirst(cat)}
+                </button>
+            `).join('');
+            
+            // Добавляем обработчики
+            moreContainer.querySelectorAll('.category-chip').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    this.selectCategory(e.target.dataset.category);
+                });
+            });
+        }
+        
+        // Обработчик кнопки "Ещё"
+        document.getElementById('showMoreCategories').addEventListener('click', () => {
+            moreContainer.style.display = moreContainer.style.display === 'flex' ? 'none' : 'flex';
+        });
+    }
+
+    getCategoryIcon(category) {
+        const icons = {
+            'овощи': '<i class="fas fa-carrot"></i>',
+            'мясо': '<i class="fas fa-drumstick-bite"></i>',
+            'молочные': '<i class="fas fa-cheese"></i>',
+            'крупы': '<i class="fas fa-bread-slice"></i>',
+            'фрукты': '<i class="fas fa-apple-alt"></i>',
+            'специи': '<i class="fas fa-mortar-pestle"></i>',
+            'рыба': '<i class="fas fa-fish"></i>',
+            'напитки': '<i class="fas fa-wine-bottle"></i>',
+            'выпечка': '<i class="fas fa-cookie-bite"></i>',
+            'бакалея': '<i class="fas fa-shopping-basket"></i>'
+        };
+        return icons[category] || '<i class="fas fa-question"></i>';
+    }
+
+    capitalizeFirst(string) {
+        return string.charAt(0).toUpperCase() + string.slice(1);
+    }
+
+    selectCategory(category) {
+        // Находим продукты этой категории
+        const categoryProducts = this.products.filter(p => p.category === category);
+        
+        // Добавляем первые 3 продукта из категории
+        categoryProducts.slice(0, 3).forEach(product => {
+            this.addProduct(product);
+        });
+        
+        // Закрываем дополнительные категории
+        document.getElementById('moreCategories').style.display = 'none';
+    }
+
     setupEventListeners() {
         // Search input
         const searchInput = document.getElementById('productSearch');
         searchInput.addEventListener('input', (e) => this.handleSearchInput(e));
-        searchInput.addEventListener('focus', () => this.showAutocomplete());
+        searchInput.addEventListener('focus', () => {
+            this.showAutocomplete();
+            // Прокручиваем к поиску на мобильных
+            if (window.innerWidth < 768) {
+                setTimeout(() => {
+                    searchInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 300);
+            }
+        });
         searchInput.addEventListener('blur', () => setTimeout(() => this.hideAutocomplete(), 200));
 
+        // Search button
+        document.getElementById('searchRecipesBtn').addEventListener('click', () => this.searchRecipes());
+        
         // AI Recipe button
         document.getElementById('aiRecipeBtn').addEventListener('click', () => this.generateAIRecipe());
 
-        // Theme toggle
-        document.getElementById('themeToggle').addEventListener('click', () => this.toggleTheme());
+        // Clear products button
+        document.getElementById('clearProducts').addEventListener('click', () => this.clearProducts());
 
-        // Tabs
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
+        // Settings button
+        document.getElementById('settingsBtn').addEventListener('click', () => this.toggleSettings());
+        document.querySelector('.close-settings').addEventListener('click', () => this.toggleSettings());
+
+        // Theme switch
+        document.getElementById('themeSwitch').addEventListener('change', (e) => this.toggleTheme(e.target.checked));
+
+        // Load more button
+        document.getElementById('loadMoreBtn').addEventListener('click', () => this.loadMoreRecipes());
+
+        // Category chips
+        document.querySelectorAll('.category-chip[data-category]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this.selectCategory(e.currentTarget.dataset.category);
+            });
         });
 
-        // Modals
-        document.querySelectorAll('.close-modal').forEach(btn => {
-            btn.addEventListener('click', () => this.closeModals());
+        // Close modals when clicking outside
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) {
+                this.closeModals();
+            }
         });
 
-        // Payment plans
-        document.querySelectorAll('.select-plan').forEach(btn => {
-            btn.addEventListener('click', (e) => this.selectPlan(e.target.closest('.plan').dataset.plan));
+        // Handle escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.closeModals();
+                document.getElementById('settingsPanel').classList.remove('active');
+            }
         });
+    }
+
+    handleMobileKeyboard() {
+        // На мобильных устройствах предотвращаем скрытие контента клавиатурой
+        if ('visualViewport' in window) {
+            const visualViewport = window.visualViewport;
+            const searchInput = document.getElementById('productSearch');
+            
+            visualViewport.addEventListener('resize', () => {
+                if (document.activeElement === searchInput) {
+                    // Прокручиваем так, чтобы поле ввода было видно
+                    searchInput.scrollIntoView({ block: 'center' });
+                }
+            });
+        }
     }
 
     handleSearchInput(e) {
         const query = e.target.value.toLowerCase().trim();
-        if (query.length < 2) {
+        if (query.length < 1) {
             this.hideAutocomplete();
             return;
         }
@@ -127,9 +234,12 @@ class ChefZeroApp {
 
         container.innerHTML = items.map(item => `
             <div class="autocomplete-item" data-id="${item.id}">
-                <span class="emoji">${item.emoji}</span>
-                <span>${item.name}</span>
-                <small>${item.category}</small>
+                ${this.getCategoryIcon(item.category)}
+                <div style="flex: 1;">
+                    <strong>${item.name}</strong>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">${item.category}</div>
+                </div>
+                <span style="font-size: 1.2rem;">${item.emoji}</span>
             </div>
         `).join('');
 
@@ -138,19 +248,24 @@ class ChefZeroApp {
         // Add click handlers
         container.querySelectorAll('.autocomplete-item').forEach(item => {
             item.addEventListener('click', (e) => {
-                this.addProduct({
-                    id: e.currentTarget.dataset.id,
-                    name: e.currentTarget.children[1].textContent,
-                    emoji: e.currentTarget.children[0].textContent
-                });
-                document.getElementById('productSearch').value = '';
-                this.hideAutocomplete();
+                const product = this.products.find(p => p.id == e.currentTarget.dataset.id);
+                if (product) {
+                    this.addProduct(product);
+                    document.getElementById('productSearch').value = '';
+                    this.hideAutocomplete();
+                    
+                    // Фокусируемся обратно на поле для продолжения ввода
+                    setTimeout(() => {
+                        document.getElementById('productSearch').focus();
+                    }, 100);
+                }
             });
         });
     }
 
     hideAutocomplete() {
-        document.getElementById('autocomplete').style.display = 'none';
+        const container = document.getElementById('autocomplete');
+        container.style.display = 'none';
     }
 
     addProduct(product) {
@@ -167,7 +282,15 @@ class ChefZeroApp {
 
         this.selectedProducts.add(productKey);
         this.renderChips();
-        this.searchRecipes();
+        
+        // Показываем секцию с выбранными продуктами
+        document.getElementById('selectedProductsSection').style.display = 'block';
+        
+        // Автоматически ищем рецепты если включена настройка
+        const autoSearch = document.getElementById('autoSearchSwitch')?.checked;
+        if (autoSearch !== false) {
+            this.searchRecipes();
+        }
     }
 
     renderChips() {
@@ -175,13 +298,15 @@ class ChefZeroApp {
         const chips = Array.from(this.selectedProducts).map(key => {
             const [id, ...nameParts] = key.split('_');
             const name = nameParts.join('_');
-            const emoji = this.products.find(p => p.id == id)?.emoji || '🍕';
+            const product = this.products.find(p => p.id == id);
+            const emoji = product?.emoji || '🍕';
+            const icon = this.getCategoryIcon(product?.category || '');
             
             return `
-                <div class="chip" data-key="${key}" draggable="true">
-                    <span class="emoji">${emoji}</span>
+                <div class="chip" data-key="${key}">
+                    ${icon}
                     <span class="name">${name}</span>
-                    <button class="delete" aria-label="Удалить">×</button>
+                    <span class="emoji">${emoji}</span>
                 </div>
             `;
         });
@@ -189,116 +314,142 @@ class ChefZeroApp {
         container.innerHTML = chips.join('');
         document.getElementById('selectedCount').textContent = this.selectedProducts.size;
 
-        // Add drag & drop
-        this.setupDragAndDrop();
-        
-        // Add delete handlers
-        container.querySelectorAll('.delete').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const chip = e.target.closest('.chip');
-                this.removeProduct(chip.dataset.key);
-            });
-        });
-    }
-
-    setupDragAndDrop() {
-        const container = document.getElementById('productChips');
-        let dragged = null;
-
+        // Add double tap to remove
         container.querySelectorAll('.chip').forEach(chip => {
-            chip.addEventListener('dragstart', (e) => {
-                dragged = chip;
-                setTimeout(() => chip.classList.add('dragging'), 0);
-            });
-
-            chip.addEventListener('dragend', () => {
-                chip.classList.remove('dragging');
-                dragged = null;
-            });
-
-            chip.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                const afterElement = this.getDragAfterElement(container, e.clientX);
-                if (afterElement == null) {
-                    container.appendChild(dragged);
-                } else {
-                    container.insertBefore(dragged, afterElement);
+            let tapCount = 0;
+            let tapTimer;
+            
+            chip.addEventListener('click', () => {
+                tapCount++;
+                
+                if (tapCount === 1) {
+                    tapTimer = setTimeout(() => {
+                        tapCount = 0;
+                    }, 300);
+                } else if (tapCount === 2) {
+                    clearTimeout(tapTimer);
+                    this.removeProduct(chip.dataset.key);
+                    tapCount = 0;
                 }
             });
         });
     }
 
-    getDragAfterElement(container, x) {
-        const draggableElements = [...container.querySelectorAll('.chip:not(.dragging)')];
-        
-        return draggableElements.reduce((closest, child) => {
-            const box = child.getBoundingClientRect();
-            const offset = x - box.left - box.width / 2;
-            
-            if (offset < 0 && offset > closest.offset) {
-                return { offset: offset, element: child };
-            } else {
-                return closest;
-            }
-        }, { offset: Number.NEGATIVE_INFINITY }).element;
-    }
-
     removeProduct(key) {
         const chip = document.querySelector(`[data-key="${key}"]`);
         if (chip) {
-            // Explode animation
-            chip.style.animation = 'explode 0.5s forwards';
-            setTimeout(() => {
-                this.selectedProducts.delete(key);
-                this.renderChips();
-                this.searchRecipes();
-            }, 300);
+            // Анимация удаления
+            gsap.to(chip, {
+                scale: 0,
+                opacity: 0,
+                duration: 0.3,
+                onComplete: () => {
+                    this.selectedProducts.delete(key);
+                    this.renderChips();
+                    this.searchRecipes();
+                    
+                    // Скрываем секцию если нет продуктов
+                    if (this.selectedProducts.size === 0) {
+                        document.getElementById('selectedProductsSection').style.display = 'none';
+                    }
+                }
+            });
         }
+    }
+
+    clearProducts() {
+        this.selectedProducts.clear();
+        document.getElementById('selectedProductsSection').style.display = 'none';
+        this.searchRecipes();
     }
 
     async searchRecipes() {
+        const container = document.getElementById('recipesContainer');
+        const emptyState = document.getElementById('emptyState');
+        const loadMore = document.getElementById('loadMoreContainer');
+        
         if (this.selectedProducts.size === 0) {
-            document.getElementById('emptyState').style.display = 'block';
-            document.getElementById('aiRecipes').innerHTML = '';
+            container.innerHTML = '';
+            emptyState.style.display = 'block';
+            loadMore.style.display = 'none';
+            document.getElementById('resultsCount').textContent = '0';
             return;
         }
 
-        document.getElementById('emptyState').style.display = 'none';
+        emptyState.style.display = 'none';
         
-        // Show regular recipes
+        // Показываем загрузку
+        container.innerHTML = `
+            <div class="loading" style="grid-column: 1/-1; text-align: center; padding: 2rem;">
+                <div class="spinner"></div>
+                <p>Ищем рецепты...</p>
+            </div>
+        `;
+
         try {
+            const products = Array.from(this.selectedProducts).map(key => {
+                const [_, ...nameParts] = key.split('_');
+                return nameParts.join('_');
+            });
+
             const response = await fetch('/api/recipes/find', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    products: Array.from(this.selectedProducts)
-                })
+                body: JSON.stringify({ products })
             });
             
             this.currentRecipes = await response.json();
-            this.renderRegularRecipes();
+            this.displayedRecipes = 3; // Сбрасываем счетчик
+            this.renderRecipes();
+            
         } catch (error) {
             console.error('Failed to search recipes:', error);
+            container.innerHTML = `
+                <div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: var(--error);">
+                    <p>Ошибка при поиске рецептов. Пожалуйста, попробуйте снова.</p>
+                </div>
+            `;
         }
     }
 
-    renderRegularRecipes() {
-        const container = document.getElementById('regularRecipes');
-        container.innerHTML = this.currentRecipes.slice(0, 6).map(recipe => `
+    renderRecipes() {
+        const container = document.getElementById('recipesContainer');
+        const loadMore = document.getElementById('loadMoreContainer');
+        const recipesToShow = this.currentRecipes.slice(0, this.displayedRecipes);
+        
+        document.getElementById('resultsCount').textContent = this.currentRecipes.length;
+
+        if (recipesToShow.length === 0) {
+            container.innerHTML = `
+                <div style="grid-column: 1/-1; text-align: center; padding: 2rem;">
+                    <p>Не найдено рецептов с этими продуктами. Попробуйте добавить больше продуктов.</p>
+                </div>
+            `;
+            loadMore.style.display = 'none';
+            return;
+        }
+
+        container.innerHTML = recipesToShow.map(recipe => `
             <div class="recipe-card" data-id="${recipe.id}">
                 <img src="${recipe.image}" alt="${recipe.title}" loading="lazy">
-                <div class="recipe-card-content">
+                <div class="recipe-content">
                     <h3>${recipe.title}</h3>
-                    <p>${recipe.description}</p>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.5rem;">${recipe.description}</p>
                     <div class="recipe-meta">
-                        <span>⏱️ ${recipe.time}</span>
-                        <span>👥 ${recipe.portions}</span>
-                        <span>${recipe.difficulty === 'просто' ? '🟢' : recipe.difficulty === 'средне' ? '🟡' : '🔴'} ${recipe.difficulty}</span>
+                        <span><i class="fas fa-clock"></i> ${recipe.time}</span>
+                        <span><i class="fas fa-user"></i> ${recipe.portions} порции</span>
+                        <span>${this.getDifficultyIcon(recipe.difficulty)} ${recipe.difficulty}</span>
                     </div>
                 </div>
             </div>
         `).join('');
+
+        // Показываем кнопку "Показать ещё" если есть больше рецептов
+        if (this.currentRecipes.length > this.displayedRecipes) {
+            loadMore.style.display = 'block';
+        } else {
+            loadMore.style.display = 'none';
+        }
 
         // Add click handlers
         container.querySelectorAll('.recipe-card').forEach(card => {
@@ -307,6 +458,20 @@ class ChefZeroApp {
                 this.showRecipe(recipe);
             });
         });
+    }
+
+    loadMoreRecipes() {
+        this.displayedRecipes += 3;
+        this.renderRecipes();
+    }
+
+    getDifficultyIcon(difficulty) {
+        const icons = {
+            'просто': '<i class="fas fa-smile" style="color: var(--success);"></i>',
+            'средне': '<i class="fas fa-meh" style="color: var(--accent);"></i>',
+            'сложно': '<i class="fas fa-frown" style="color: var(--error);"></i>'
+        };
+        return icons[difficulty] || '';
     }
 
     async generateAIRecipe() {
@@ -343,14 +508,13 @@ class ChefZeroApp {
             // Update limits
             this.limits.used++;
             localStorage.setItem('chefzero_limits', JSON.stringify(this.limits));
-            this.updateLimitsDisplay();
             
             // Show recipe
             this.hideProgressBar();
             this.showRecipe(recipe);
             
-            // Add to AI recipes grid
-            this.addAIRecipeCard(recipe);
+            // Add particle effect
+            createParticleBurst(window.innerWidth / 2, window.innerHeight / 2);
             
         } catch (error) {
             console.error('Failed to generate AI recipe:', error);
@@ -359,215 +523,17 @@ class ChefZeroApp {
         }
     }
 
-    addAIRecipeCard(recipe) {
-        const container = document.getElementById('aiRecipes');
-        const card = document.createElement('div');
-        card.className = 'recipe-card';
-        card.dataset.id = 'ai_' + Date.now();
-        card.innerHTML = `
-            <img src="${recipe.image}" alt="${recipe.title}" loading="lazy">
-            <div class="recipe-card-content">
-                <h3>${recipe.title} <small>✨ ИИ</small></h3>
-                <div class="recipe-meta">
-                    <span>⏱️ ${recipe.time}</span>
-                    <span>👥 ${recipe.portions}</span>
-                    <span>${recipe.difficulty === 'просто' ? '🟢' : recipe.difficulty === 'средне' ? '🟡' : '🔴'} ${recipe.difficulty}</span>
-                </div>
-            </div>
-        `;
-        
-        card.addEventListener('click', () => this.showRecipe(recipe));
-        container.insertBefore(card, container.firstChild);
-        
-        // Limit to 6 cards
-        if (container.children.length > 6) {
-            container.removeChild(container.lastChild);
-        }
-    }
-
     showRecipe(recipe) {
-        document.getElementById('recipeTitle').textContent = recipe.title;
-        document.getElementById('recipeImage').src = recipe.image;
-        document.getElementById('recipeTime').textContent = `⏱️ ${recipe.time}`;
-        document.getElementById('recipePortions').textContent = `👥 ${recipe.portions}`;
-        document.getElementById('recipeDifficulty').textContent = 
-            `${recipe.difficulty === 'просто' ? '🟢' : recipe.difficulty === 'средне' ? '🟡' : '🔴'} ${recipe.difficulty}`;
+        const modal = document.getElementById('recipeModal');
+        const content = modal.querySelector('.recipe-modal-content');
         
-        document.getElementById('recipeIngredients').innerHTML = 
-            recipe.ingredients.map(i => `<li>${i}</li>`).join('');
-        
-        document.getElementById('recipeSteps').innerHTML = 
-            recipe.steps.map(s => `<li>${s}</li>`).join('');
-        
-        document.getElementById('recipeModal').classList.add('active');
-        
-        // 3D flip effect
-        gsap.fromTo('.recipe-modal', 
-            { rotationY: -90, opacity: 0 },
-            { rotationY: 0, opacity: 1, duration: 0.8, ease: 'back.out(1.7)' }
-        );
-    }
-
-    showPaymentModal() {
-        document.getElementById('paymentModal').classList.add('active');
-    }
-
-    async selectPlan(plan) {
-        try {
-            const response = await fetch('/api/payment/create', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    plan,
-                    deviceId: this.deviceId
-                })
-            });
-            
-            const payment = await response.json();
-            
-            // Show payment iframe
-            const frame = document.getElementById('paymentFrame');
-            frame.innerHTML = `
-                <iframe src="${payment.paymentUrl}" 
-                        style="width:100%; height:500px; border:none; border-radius:var(--radius)">
-                </iframe>
-            `;
-            
-            // Poll for payment status
-            this.checkPaymentStatus(payment.id);
-            
-        } catch (error) {
-            console.error('Payment error:', error);
-            this.showToast('Ошибка оплаты', 'error');
-        }
-    }
-
-    async checkPaymentStatus(paymentId) {
-        const check = async () => {
-            try {
-                const response = await fetch(`/api/payment/status/${paymentId}`);
-                const status = await response.json();
-                
-                if (status.status === 'paid') {
-                    // Success!
-                    this.limits.free += status.addedCredits;
-                    localStorage.setItem('chefzero_limits', JSON.stringify(this.limits));
-                    this.updateLimitsDisplay();
-                    
-                    this.closeModals();
-                    this.showConfetti();
-                    this.showToast('Премиум активирован! 🎉', 'success');
-                } else if (status.status === 'pending') {
-                    setTimeout(check, 3000);
-                }
-            } catch (error) {
-                console.error('Status check error:', error);
-            }
-        };
-        
-        setTimeout(check, 3000);
-    }
-
-    showProgressBar() {
-        const container = document.getElementById('progressBar');
-        const fill = container.querySelector('.progress-fill');
-        
-        container.style.display = 'flex';
-        
-        // Animate progress
-        let progress = 0;
-        const interval = setInterval(() => {
-            progress += Math.random() * 15;
-            if (progress > 95) clearInterval(interval);
-            fill.style.width = Math.min(progress, 95) + '%';
-        }, 300);
-        
-        this.progressInterval = interval;
-    }
-
-    hideProgressBar() {
-        const container = document.getElementById('progressBar');
-        const fill = container.querySelector('.progress-fill');
-        
-        if (this.progressInterval) {
-            clearInterval(this.progressInterval);
-        }
-        
-        fill.style.width = '100%';
-        setTimeout(() => {
-            container.style.display = 'none';
-            fill.style.width = '0%';
-        }, 500);
-    }
-
-    showConfetti() {
-        if (window.confetti) {
-            confetti({
-                particleCount: 150,
-                spread: 70,
-                origin: { y: 0.6 }
-            });
-        }
-    }
-
-    showToast(message, type = 'info') {
-        // Implement toast notification
-        console.log(`[${type}] ${message}`);
-    }
-
-    switchTab(tab) {
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
-        
-        document.getElementById('aiRecipes').style.display = tab === 'ai' ? 'grid' : 'none';
-        document.getElementById('regularRecipes').style.display = tab === 'regular' ? 'grid' : 'none';
-    }
-
-    toggleTheme() {
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
-        localStorage.setItem('chefzero_theme', isDark ? 'light' : 'dark');
-    }
-
-    closeModals() {
-        document.querySelectorAll('.modal').forEach(modal => {
-            modal.classList.remove('active');
-        });
-    }
-
-    animateStats() {
-        document.querySelectorAll('.number').forEach(el => {
-            const target = parseInt(el.dataset.count);
-            let current = 0;
-            const increment = target / 50;
-            
-            const timer = setInterval(() => {
-                current += increment;
-                if (current >= target) {
-                    el.textContent = target;
-                    clearInterval(timer);
-                } else {
-                    el.textContent = Math.floor(current);
-                }
-            }, 30);
-        });
-    }
-
-    registerServiceWorker() {
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js')
-                .then(reg => console.log('Service Worker registered'))
-                .catch(err => console.log('Service Worker registration failed:', err));
-        }
-    }
-}
-
-// Initialize app when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    window.app = new ChefZeroApp();
-    
-    // Set theme from localStorage
-    const savedTheme = localStorage.getItem('chefzero_theme') || 
-                       (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    document.documentElement.setAttribute('data-theme', savedTheme);
-});
+        content.innerHTML = `
+            <div class="recipe-header">
+                <img src="${recipe.image}" alt="${recipe.title}" style="width:100%; border-radius: var(--radius); margin-bottom: 1rem;">
+                <h2 style="margin-bottom: 0.5rem;">${recipe.title}</h2>
+                <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+                    <span style="background: var(--surface-2); padding: 0.5rem 1rem; border-radius: 50px;">
+                        <i class="fas fa-clock"></i> ${recipe.time}
+                    </span>
+                    <span style="background: var(--surface-2); padding: 0.5rem 1rem; border-radius: 50px;">
+                        <i class="fas fa-user"></i> ${recipe.portions} пор
