@@ -1,32 +1,62 @@
-require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const routes = require('./routes');
+const fs = require('fs').promises;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
-// API Routes
-app.use('/api', routes);
+app.use((req, res, next) => {
+    console.log(`${req.method} ${req.url}`);
+    next();
+});
 
-// Serve PWA
+const apiRoutes = require('./api');
+app.use('/api', apiRoutes);
+
+app.get('/service.js', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/service.js'));
+});
+
+app.get('/manifest.json', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/manifest.json'));
+});
+
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-// Error handling
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({ error: 'Что-то пошло не так!' });
-});
+async function initData() {
+    try {
+        const dataPath = path.join(__dirname, '../data');
+        const files = ['products.json', 'recipes.json', 'users.json'];
+        
+        for (const file of files) {
+            try {
+                await fs.access(path.join(dataPath, file));
+            } catch {
+                console.log(`Создаём файл: ${file}`);
+                await fs.writeFile(
+                    path.join(dataPath, file),
+                    '[]'
+                );
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка инициализации данных:', error);
+    }
+}
 
-app.listen(PORT, () => {
-    console.log(`🚀 ChefZero запущен на порту ${PORT}`);
-    console.log(`🔗 http://localhost:${PORT}`);
-});
+async function startServer() {
+    await initData();
+    
+    app.listen(PORT, () => {
+        console.log(`🚀 Сервер запущен на порту ${PORT}`);
+    });
+}
+
+startServer();
