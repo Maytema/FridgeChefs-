@@ -1,7 +1,7 @@
 {
   "name": "chefzero",
-  "version": "1.0.0",
-  "description": "0 рублей → вкусный ужин. ИИ-шеф создает рецепты из продуктов в холодильнике",
+  "version": "2.0.0",
+  "description": "Рецепты из того, что есть в холодильнике. Быстрый поиск и ИИ-рекомендации",
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",
@@ -10,10 +10,10 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
-    "ai",
     "recipes",
     "cooking",
     "food",
+    "ai",
     "gemini",
     "pwa"
   ],
@@ -31,13 +31,5 @@
   },
   "engines": {
     "node": ">=18.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/yourusername/chefzero.git"
-  },
-  "bugs": {
-    "url": "https://github.com/yourusername/chefzero/issues"
-  },
-  "homepage": "https://chefzero.app"
+  }
 }
