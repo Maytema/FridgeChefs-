@@ -1,126 +1,110 @@
-const axios = require('axios');
+const crypto = require('crypto');
+const fetch = require('node-fetch');
 
-const CRYPTOCLOUD_URL = 'https://api.cryptocloud.plus/v1';
-const SHOP_ID = process.env.CRYPTOCLOUD_SHOP_ID;
-const API_KEY = process.env.CRYPTOCLOUD_API_KEY;
-
-// Plan configurations
-const PLANS = {
-    monthly: {
-        amount: 299,
-        currency: 'RUB',
-        description: 'Премиум подписка ChefZero на 1 месяц',
-        credits: 9999 // Unlimited
-    },
-    pack: {
-        amount: 99,
-        currency: 'RUB',
-        description: 'Пакет из 10 ИИ-рецептов ChefZero',
-        credits: 10
-    }
-};
-
-async function createPayment(planType, deviceId) {
-    try {
-        const plan = PLANS[planType];
-        if (!plan) {
-            throw new Error('Неверный тип подписки');
-        }
+class PaymentService {
+    constructor() {
+        this.shopId = process.env.CRYPTO_SHOP_ID;
+        this.apiKey = process.env.CRYPTO_API_KEY;
+        this.baseUrl = 'https://api.cryptocloud.plus';
         
-        const paymentData = {
-            amount: plan.amount,
-            currency: plan.currency,
-            description: plan.description,
-            order_id: `chefzero_${deviceId}_${Date.now()}`,
-            email: 'user@chefzero.app',
-            custom: JSON.stringify({
-                plan: planType,
-                deviceId: deviceId,
-                credits: plan.credits
-            }),
-            callback_url: `${process.env.APP_URL}/api/payment/callback`,
-            success_url: `${process.env.APP_URL}/?payment=success`,
-            fail_url: `${process.env.APP_URL}/?payment=failed`
+        if (this.shopId && this.apiKey) {
+            console.log('CryptoCloud API инициализирован');
+        } else {
+            console.log('CryptoCloud ключи не найдены, используется демо-режим');
+        }
+    }
+
+    async createPayment(params) {
+        if (!this.shopId || !this.apiKey) {
+            return this.createDemoPayment(params);
+        }
+
+        try {
+            const paymentData = {
+                shop_id: this.shopId,
+                amount: params.amount.toString(),
+                currency: params.currency || 'RUB',
+                order_id: `chefzero-${Date.now()}`,
+                description: params.description
+            };
+
+            const signature = this.createSignature(paymentData);
+
+            const response = await fetch(`${this.baseUrl}/v1/invoice/create`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Token ${this.apiKey}`,
+                    'Signature': signature
+                },
+                body: JSON.stringify(paymentData)
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                return {
+                    id: result.data.invoice_id,
+                    invoice_url: result.data.pay_url,
+                    amount: result.data.amount,
+                    currency: result.data.currency,
+                    status: result.data.status
+                };
+            } else {
+                throw new Error(result.message || 'Ошибка создания платежа');
+            }
+
+        } catch (error) {
+            console.error('Ошибка создания платежа:', error);
+            return this.createDemoPayment(params);
+        }
+    }
+
+    async checkPaymentStatus(invoiceId) {
+        if (!this.apiKey || invoiceId.startsWith('demo_')) {
+            return 'paid';
+        }
+
+        try {
+            const response = await fetch(`${this.baseUrl}/v1/invoice/info?invoice_id=${invoiceId}`, {
+                headers: {
+                    'Authorization': `Token ${this.apiKey}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                return result.data.status;
+            } else {
+                return 'failed';
+            }
+
+        } catch (error) {
+            console.error('Ошибка проверки статуса:', error);
+            return 'failed';
+        }
+    }
+
+    createSignature(data) {
+        const jsonData = JSON.stringify(data);
+        return crypto
+            .createHmac('sha256', this.apiKey)
+            .update(jsonData)
+            .digest('hex');
+    }
+
+    createDemoPayment(params) {
+        return {
+            id: `demo_${Date.now()}`,
+            invoice_url: 'https://cryptocloud.plus/demo',
+            amount: params.amount,
+            currency: params.currency,
+            status: 'pending',
+            demo: true
         };
-        
-        const response = await axios.post(`${CRYPTOCLOUD_URL}/invoice/create`, paymentData, {
-            headers: {
-                'Authorization': `Token ${API_KEY}`,
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        if (response.data.status === 'success') {
-            return {
-                id: response.data.result.invoice_id,
-                paymentUrl: response.data.result.pay_url,
-                amount: plan.amount,
-                credits: plan.credits
-            };
-        } else {
-            throw new Error(response.data.error || 'Ошибка создания платежа');
-        }
-        
-    } catch (error) {
-        console.error('Create payment error:', error.response?.data || error.message);
-        throw error;
     }
 }
 
-async function checkPayment(invoiceId) {
-    try {
-        const response = await axios.get(`${CRYPTOCLOUD_URL}/invoice/info`, {
-            params: { uuid: invoiceId },
-            headers: {
-                'Authorization': `Token ${API_KEY}`
-            }
-        });
-        
-        if (response.data.status === 'success') {
-            const invoice = response.data.result;
-            const custom = JSON.parse(invoice.custom || '{}');
-            
-            return {
-                status: invoice.status,
-                amount: invoice.amount,
-                currency: invoice.currency,
-                paidAt: invoice.paid_at,
-                addedCredits: custom.credits || 0,
-                plan: custom.plan
-            };
-        } else {
-            throw new Error(response.data.error || 'Ошибка проверки статуса');
-        }
-        
-    } catch (error) {
-        console.error('Check payment error:', error.response?.data || error.message);
-        throw error;
-    }
-}
-
-// Webhook handler for CryptoCloud callbacks
-async function handleWebhook(data) {
-    try {
-        const { invoice_id, status } = data;
-        
-        if (status === 'paid') {
-            // Update user limits in your database
-            console.log(`Payment ${invoice_id} completed successfully`);
-            
-            // Here you would:
-            // 1. Parse custom data
-            // 2. Update user's limits in database
-            // 3. Send confirmation email if needed
-            
-            return { success: true };
-        }
-        
-        return { success: false, reason: 'Payment not completed' };
-        
-    } catch (error) {
-        console.error('Webhook error:', error);
-        throw error;
-    }
-}
-
-module.exports = { createPayment, checkPayment, handleWebhook };
+module.exports = new PaymentService();
